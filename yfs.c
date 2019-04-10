@@ -356,6 +356,9 @@ get_inode_in_dir(char *name, int dir_inode) {
 
 
 
+//// WORKING ON NAVIGATING THE FILESYSTEM  - GETTING DIRECTORY ENTRIES
+
+
 
 
 
