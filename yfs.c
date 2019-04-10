@@ -316,6 +316,9 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 		block = get_block(node->direct[num_direct_block]);
 		memcpy(buf + size_copied, block, size - size_copied);
 		return;
+
+
+
 	} else {
 		// COPY FROM INDIRECT
 		printf("%s\n", "ON INDIRECT BLOCKS");
@@ -325,7 +328,7 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 
 }
 
-struct list_elem *
+void *
 get_dir_entries(int num)
 {
 	struct inode *dirnode = get_inode(num);
@@ -336,12 +339,14 @@ get_dir_entries(int num)
 
 	int num_entries = dirnode->size / sizeof(dir_entry);
 
-	struct list_elem *dir_elem = malloc(sizeof(struct list_elem));
-	struct list_elem *temp_elem = dir_elem;
+	// struct list_elem *dir_elem = malloc(sizeof(struct list_elem));
+	// struct list_elem *temp_elem = dir_elem;
 
 
 
-	return dir_elem;
+
+
+	return dir_entries;
 }
 
 int
