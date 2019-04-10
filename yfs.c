@@ -207,6 +207,7 @@ get_inode(int num) {
 		// inode is not in cache
 		int blocknum = (num + 1) * INODESIZE / SECTORSIZE;
 		int offset = ((num + 1) * INODESIZE) % SECTORSIZE;
+		node = malloc(INODESIZE);
 		read_with_offset(blocknum, node, offset, INODESIZE);
 
 		// Remove LRU block
@@ -218,8 +219,6 @@ get_inode(int num) {
 	}
 	return node;
 }
-
-
 
 
 
@@ -260,8 +259,98 @@ main() {
 
 int
 read_with_offset(int sectornum, void *buf, int offset, int size) {
-	char *temp = malloc(BLOCKSIZE);
-	ReadSector(sectornum, temp);
+	char *temp = get_block(sectornum);
 	memcpy(buf, temp + offset, size);
-	free(temp);
 }
+
+
+int
+get_inode_num_from_path(char *pathname, int dir_inode) {
+	if (strlen(pathname) == 0) {
+		printf("%s\n", "Pathname has length 0");
+		return -1;
+	}
+	if (char[0] == "/") {
+		// ABSOLUTE PATH
+	} else {
+		// RELATIVE PATH
+	}
+}
+
+
+void
+copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
+	struct inode *node = get_inode(inodenum);
+	int size_copied = 0;
+
+	//FIND FIRST BLOCK TO USE and OFFSET
+	num_direct_block = offset / SECTORSIZE;
+	offset = offset % SECTORSIZE;
+	char *block = get_block(node->direct[num_direct_block]);
+
+	// COPY FROM FIRST BLOCK
+	if (offset * size <= SECTORSIZE) {
+		// just copy part of the first block starting at offset
+		memcpy(buf, block + offset, size);
+		return;
+
+	} else {
+		// copy whole first block starting at offset
+		memcpy(buf, block + offset, SECTORSIZE - offset);
+		size_copied = SECTORSIZE - offset;
+		num_direct_block ++;
+	}
+
+	// COPY FROM FULL BLOCKS
+	while(size - size_copied >= SECTORSIZE && num_direct_block < NUM_DIRECT) {
+		// copy the whole block
+		block = get_block(node->direct[num_direct_block]);
+		memcpy(buf + size_copied, block, SECTORSIZE);
+		size_copied = SECTORSIZE - offset;
+		num_direct_block ++;
+	}
+
+	// COPY FROM LAST BLOCK / INDIRECT
+	if (num_direct_block != NUM_DIRECT) {
+		// COPY FROM LAST BLOCK
+		block = get_block(node->direct[num_direct_block]);
+		memcpy(buf + size_copied, block, size - size_copied);
+		return;
+	} else {
+		// COPY FROM INDIRECT
+		printf("%s\n", "ON INDIRECT BLOCKS");
+	}
+
+	// check if on indirect or on last block
+
+}
+
+struct list_elem *
+get_dir_entries(int num)
+{
+	struct inode *dirnode = get_inode(num);
+	if (dirnode->type != INODE_DIRECTORY) {
+		printf("%s\n", "inode num given is not a directory");
+		return NULL;
+	}
+
+	int num_entries = dirnode->size / sizeof(dir_entry);
+
+	struct list_elem *dir_elem = malloc(sizeof(struct list_elem));
+	struct list_elem *temp_elem = dir_elem;
+
+
+
+	return dir_elem;
+}
+
+int
+get_inode_in_dir(char *name, int dir_inode) {
+
+}
+
+
+
+
+
+
