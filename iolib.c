@@ -1,17 +1,29 @@
 #include <comp421/filesystem.h>
 #include <comp421/iolib.h>
 
+#define OPEN 0
+#define CLOSE 1
+#define CREATE 2
+
 struct file_information {
 	int inum;
 	int position;
 }
 
+struct my_msg{
+    int type;
+    int data1;
+    char data2[16];
+    void *ptr 
+}
+
 file_information open_files[MAX_OPEN_FILES];
 int unused_fd = MAX_OPEN_FILES;
-
+int flag = 0;
+int inode = ROOTINODE;
 
 int
-main() {
+initialize() {
 	int i;
 	for (i = 0; i < MAX_OPEN_FILES; i++) {
 		open_files[i] -> inum = 0;
@@ -31,7 +43,26 @@ get_unused_fd(){
 
 int 
 Open(char *pathname) {
+
+	my_msg msg;
+	if (flag = 0) {
+		initialize();
+		flag = 1;
+	}
+
 	if (unused_fd == 0) {
+		return ERROR;
+	}
+
+	//Create new msg
+	msg -> type = 0;
+	msg -> data1 = strlen(pathname);
+	//TODO: what do I fill in for data field?
+	msg -> ptr = pathname;
+
+	//Send message to kernel
+	int send_message = Send(&msg, -FILE_SERVER);
+	if (send_message == ERROR) {
 		return ERROR;
 	}
 
@@ -41,7 +72,7 @@ Open(char *pathname) {
 	//TODO: how do I get the file inode number??
 	int i;
 	for(i = 0; i < MAX_OPEN_FILES; i++) {
-		if (open_files[i] -> inum != 0 && open_files[i] -> inum == <INSERT FILE INODE NUMBER>) {
+		if (open_files[i] -> inum != 0 && open_files[i] -> inum == msg -> data1) {
 			fd = i;
 			return fd;
 		}
@@ -49,8 +80,7 @@ Open(char *pathname) {
 
 	fd = get_unused_fd();
 
-
-	open_files[fd] -> inum = <INSERT FILE INODE NUMBER>;
+	open_files[fd] -> inum = msg -> data1;
 	open_files[fd] -> position = 0;
 
 	unused_fd--;
@@ -73,7 +103,28 @@ Close(int fd) {
 
 int
 Create(char *pathname) {
-	return 0;
+	if (flag == 0) {
+		init();
+		flag = 1;
+	}
+
+	msg -> type = 2;
+	msg -> data1 = strlen(pathname);
+	//TODO: what do I fill in for data field?
+	msg -> ptr = pathname;
+
+	int send_message = Send(&msg, -FILE_SERVER);
+	if (send_message == ERROR) {
+		return ERROR;
+	}
+
+	fd = get_unused_fd();
+
+	open_files[fd] -> inum = msg -> data1;
+	open_files[fd] -> position = 0;
+
+	unused_fd--;
+	return fd;
 }
 
 int
@@ -120,6 +171,11 @@ RmDir(char *pathname){
 	return 0;
 }
 
+int 
+ChDir(char *pathname){
+	return 0;
+}
+
 
 int 
 Stat(char *pathname, struct Stat *statbuf){
@@ -133,9 +189,13 @@ Sync(){
 
 int
 Shutdown(){
+	my_msg msg;
+	msg.type = 16;
+
+	int send_message = Send(&msg, -FILE_SERVER);
+	if (send_message == ERROR) {
+		return ERROR;
+	}
+
 	return 0;
 }
-
-
-
-
