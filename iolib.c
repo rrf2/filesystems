@@ -8,26 +8,26 @@
 struct file_information {
 	int inum;
 	int position;
-}
+};
 
 struct my_msg1{
     int type;
     int data1;
     char data2[16];
-    void *ptr
-}
+    void *ptr;
+};
 
 struct my_msg2{
-    int type;
-    int data1;
-    int data2;
-    int data3;
-    int data4;
-    int data5;
-    void *ptr
-}
+	int type;
+	int data1;
+	int data2;
+	int data3;
+	int data4;
+	int data5;
+	void *ptr;
+};
 
-file_information open_files[MAX_OPEN_FILES];
+struct file_information open_files[MAX_OPEN_FILES];
 int unused_fd = MAX_OPEN_FILES;
 int flag = 0;
 int inode = ROOTINODE;
@@ -36,8 +36,8 @@ int
 initialize() {
 	int i;
 	for (i = 0; i < MAX_OPEN_FILES; i++) {
-		open_files[i] -> inum = 0;
-		open_files[i] -> position = 0;
+		open_files[i].inum = 0;
+		open_files[i].position = 0;
 	}
 }
 
@@ -45,36 +45,35 @@ int
 get_unused_fd(){
 	int i;
 	for (i = 0; i < MAX_OPEN_FILES; i++) {
-		if (open_files[i] -> inum == 0) {
-			return i;
+		if (open_files[i].inum == 0) {
+			return i; 
 		}
 	}
 }
 
-int
+int 
 Open(char *pathname) {
 
-	my_msg msg;
+	struct my_msg2 *msg;
 	if (flag = 0) {
 		initialize();
 		flag = 1;
 	}
 
 	if (unused_fd == 0) {
-		return ERROR;
+		return -1;
 	}
 
 	//Create new msg
 	msg -> type = 0;
 	msg -> data1 = strlen(pathname);
 	//TODO: what do I fill in for data field?
-
-	msg -> ptr = pathname;
+	msg -> ptr = &pathname;
 
 	//Send message to kernel
 	int send_message = Send(&msg, -FILE_SERVER);
-	if (send_message == ERROR) {
-		return ERROR;
+	if (send_message == -1) {
+		return -1;
 	}
 
 	int fd;
@@ -83,7 +82,7 @@ Open(char *pathname) {
 	//TODO: how do I get the file inode number??
 	int i;
 	for(i = 0; i < MAX_OPEN_FILES; i++) {
-		if (open_files[i] -> inum != 0 && open_files[i] -> inum == msg -> data1) {
+		if (open_files[i].inum != 0 && open_files[i].inum == msg -> data1) {
 			fd = i;
 			return fd;
 		}
@@ -91,8 +90,8 @@ Open(char *pathname) {
 
 	fd = get_unused_fd();
 
-	open_files[fd] -> inum = msg -> data1;
-	open_files[fd] -> position = 0;
+	open_files[fd].inum = msg -> data1;
+	open_files[fd].position = 0;
 
 	unused_fd--;
 	return fd;
@@ -102,41 +101,41 @@ Open(char *pathname) {
 
 int
 Close(int fd) {
-	if (open_files[fd] -> inum == 0) {
-		return ERROR;
+	if (open_files[fd].inum == 0) {
+		return -1;
 	}
 
-	open_files[fd] -> inum = 0;
-	open_files[fd] -> position = 0;
+	open_files[fd].inum = 0;
+	open_files[fd].position = 0;
 	unused_fd++;
 	return 0;
-}
+} 
 
-int
-Create(char *pathname) {
-	if (flag == 0) {
-		init();
-		flag = 1;
-	}
+// int
+// Create(char *pathname) {
+// 	if (flag == 0) {
+// 		init();
+// 		flag = 1;
+// 	}
 
-	msg -> type = 2;
-	msg -> data1 = strlen(pathname);
-	//TODO: what do I fill in for data field?
-	msg -> ptr = pathname;
+// 	msg -> type = 2;
+// 	msg -> data1 = strlen(pathname);
+// 	//TODO: what do I fill in for data field?
+// 	msg -> ptr = pathname;
 
-	int send_message = Send(&msg, -FILE_SERVER);
-	if (send_message == ERROR) {
-		return ERROR;
-	}
+// 	int send_message = Send(&msg, -FILE_SERVER);
+// 	if (send_message == -1) {
+// 		return -1;
+// 	}
 
-	fd = get_unused_fd();
+// 	fd = get_unused_fd();
 
-	open_files[fd] -> inum = msg -> data1;
-	open_files[fd] -> position = 0;
+// 	open_files[fd] -> inum = msg -> data1;
+// 	open_files[fd] -> position = 0;
 
-	unused_fd--;
-	return fd;
-}
+// 	unused_fd--;
+// 	return fd;
+// }
 
 int
 Read(int fd, void *buf, int size) {
@@ -152,7 +151,7 @@ Seek(int fd, int offset, int whence){
 	return 0;
 }
 
-int
+int 
 Link(char *oldname, char *newname){
 	return 0;
 }
@@ -162,33 +161,33 @@ Unlink(char *pathname){
 	return 0;
 }
 
-int
+int 
 Symlink(char* oldname, char* newname){
 	return 0;
 }
 
-int
+int 
 ReadLink(char *pathname, char *buf, int len){
 	return 0;
 }
 
-int
+int 
 MkDir(char *pathname){
 	return 0;
 }
 
-int
+int 
 RmDir(char *pathname){
 	return 0;
 }
 
-int
+int 
 ChDir(char *pathname){
 	return 0;
 }
 
 
-int
+int 
 Stat(char *pathname, struct Stat *statbuf){
 	return 0;
 }
@@ -200,12 +199,12 @@ Sync(){
 
 int
 Shutdown(){
-	my_msg msg;
-	msg.type = 16;
+	struct my_msg1 *msg;
+	msg -> type = 16;
 
 	int send_message = Send(&msg, -FILE_SERVER);
-	if (send_message == ERROR) {
-		return ERROR;
+	if (send_message == -1) {
+		return -1;
 	}
 
 	return 0;

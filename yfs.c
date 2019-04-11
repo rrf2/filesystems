@@ -22,8 +22,8 @@ struct my_msg1{
     int type;
     int data1;
     char data2[16];
-    void *ptr
-}
+    void *ptr;
+};
 
 struct my_msg2{
     int type;
@@ -32,8 +32,8 @@ struct my_msg2{
     int data3;
     int data4;
     int data5;
-    void *ptr
-}
+    void *ptr;
+};
 
 // struct inode_cache_entry {
 // 	int num;
@@ -237,17 +237,17 @@ main() {
 	num_inodes = header.num_inodes;
 	num_blocks = header.num_blocks;
 
-	struct my_msg1 *msg = malloc(sizeof(my_msg));
+	struct my_msg1 *msg = malloc(sizeof(struct my_msg1));
 
 	int senderid = Receive(msg);
 
 	if (msg->type == OPEN) {
-		struct my_msg2 = (my_msg2)msg;
-		char *pathname = malloc(msg->data2);
-		int len = msg->data2;
-		int dir_inode_num = msg->data1;
-		CopyFrom(senderid, pathname, msg->ptr, len);
-		_Open(msg->ptr, dir_inode_num);
+		struct my_msg2 *msg2 = (struct my_msg2*)msg;
+		char *pathname = malloc(msg2->data2);
+		int len = msg2->data2;
+		int dir_inode_num = msg2->data1;
+		CopyFrom(senderid, pathname, msg2->ptr, len);
+		_Open(msg2->ptr, dir_inode_num);
 	}
 
 }
@@ -386,41 +386,41 @@ _Open(char *pathname, int current_inode) {
 }
 
 
-int _Create(char *pathname, int current_inode, int new_inode) {
-	if (current_inode == 0) {
-		return ERROR;
-	}
+// int _Create(char *pathname, int current_inode, int new_inode) {
+// 	if (current_inode == 0) {
+// 		return ERROR;
+// 	}
 
-	char *filename;
-	int directory_inum;
-	//TODO: Get directory inode number
-	//TODO: Get directory inode info
+// 	char *filename;
+// 	int directory_inum;
+// 	//TODO: Get directory inode number
+// 	//TODO: Get directory inode info
 
 
-	int new_inum = //TODO:Search for the new filename if it already exists
+// 	int new_inum = //TODO:Search for the new filename if it already exists
 
-	int i;
-	for (i = 0; i<DIRNAMELEN; i++) {
-        dir_entry->name[i] = '\0';
-    }
-    for (i = 0; filename[i] != '\0'; i++) {
-        dir_entry->name[i] = filename[i];
-    }
+// 	int i;
+// 	for (i = 0; i<DIRNAMELEN; i++) {
+//         dir_entry->name[i] = '\0';
+//     }
+//     for (i = 0; filename[i] != '\0'; i++) {
+//         dir_entry->name[i] = filename[i];
+//     }
 
-    int block = get_block() //TODO: get block number?
-    inodeNum = //TODO: Get next free inode
+//     int block = get_block() //TODO: get block number?
+//     inodeNum = //TODO: Get next free inode
 
-    struct dir_entry *dir_entry;
+//     struct dir_entry *dir_entry;
 
-    dir_entry -> inum = inodeNum;
-    struct inode *inode = get_inode(inodeNum);
-    inode->type = INODE_REGULAR;
-    inode->size = 0;
-    inode->nlink = 1;
+//     dir_entry -> inum = inodeNum;
+//     struct inode *inode = get_inode(inodeNum);
+//     inode->type = INODE_REGULAR;
+//     inode->size = 0;
+//     inode->nlink = 1;
 
-    //TODO: add stuff to cache probably?
-    return inodeNum;
-}
+//     //TODO: add stuff to cache probably?
+//     return inodeNum;
+// }
 
 
 
