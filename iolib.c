@@ -10,11 +10,21 @@ struct file_information {
 	int position;
 }
 
-struct my_msg{
+struct my_msg1{
     int type;
     int data1;
     char data2[16];
-    void *ptr 
+    void *ptr
+}
+
+struct my_msg2{
+    int type;
+    int data1;
+    int data2;
+    int data3;
+    int data4;
+    int data5;
+    void *ptr
 }
 
 file_information open_files[MAX_OPEN_FILES];
@@ -36,12 +46,12 @@ get_unused_fd(){
 	int i;
 	for (i = 0; i < MAX_OPEN_FILES; i++) {
 		if (open_files[i] -> inum == 0) {
-			return i; 
+			return i;
 		}
 	}
 }
 
-int 
+int
 Open(char *pathname) {
 
 	my_msg msg;
@@ -58,6 +68,7 @@ Open(char *pathname) {
 	msg -> type = 0;
 	msg -> data1 = strlen(pathname);
 	//TODO: what do I fill in for data field?
+
 	msg -> ptr = pathname;
 
 	//Send message to kernel
@@ -99,7 +110,7 @@ Close(int fd) {
 	open_files[fd] -> position = 0;
 	unused_fd++;
 	return 0;
-} 
+}
 
 int
 Create(char *pathname) {
@@ -141,7 +152,7 @@ Seek(int fd, int offset, int whence){
 	return 0;
 }
 
-int 
+int
 Link(char *oldname, char *newname){
 	return 0;
 }
@@ -151,33 +162,33 @@ Unlink(char *pathname){
 	return 0;
 }
 
-int 
+int
 Symlink(char* oldname, char* newname){
 	return 0;
 }
 
-int 
+int
 ReadLink(char *pathname, char *buf, int len){
 	return 0;
 }
 
-int 
+int
 MkDir(char *pathname){
 	return 0;
 }
 
-int 
+int
 RmDir(char *pathname){
 	return 0;
 }
 
-int 
+int
 ChDir(char *pathname){
 	return 0;
 }
 
 
-int 
+int
 Stat(char *pathname, struct Stat *statbuf){
 	return 0;
 }
