@@ -119,6 +119,8 @@ insert_elem_in_cache(int num, void *data, int block) {
 	entry->data = data;
 	entry->dirty = 0;
 
+
+
 	struct list_elem *newelem = malloc(sizeof(struct list_elem));
 	newelem->entry = entry;
 	newelem->next = NULL;
@@ -136,7 +138,16 @@ insert_elem_in_cache(int num, void *data, int block) {
 
 	if (elem == NULL) {
 		// No collision
-		block_hashtable[num % BLOCK_HASHTABLE_SIZE] = newelem;
+		// printf("No collision on insert\n");
+		if (block == 1){
+			block_hashtable[num % BLOCK_HASHTABLE_SIZE] = newelem;
+			// printf("Put elem at block_hashtable: %d\n", num % BLOCK_HASHTABLE_SIZE);
+		}
+		else {
+			inode_hashtable[num % INODE_HASHTABLE_SIZE] = newelem;
+			// printf("Put elem at inode_hashtable index: %d\n", num % INODE_HASHTABLE_SIZE);
+		}
+
 	} else {
 		// Collision - loop to end of list
 		while(elem->next != NULL)
@@ -192,6 +203,7 @@ get_block(int num) {
 	char *block = get_cached_elem(num, 1);
 	if (block == NULL) {
 		// block is not in cache
+		// printf("Blocknum %d not in cache\n", num);
 
 		block = malloc(SECTORSIZE); // Allocate space for the block
 		ReadSector(num, block); // Read the block into the allocated space
@@ -202,7 +214,6 @@ get_block(int num) {
 
 		// Cache the new block
 		insert_elem_in_cache(num, block, 1);
-
 	}
 	return block;
 }
@@ -212,9 +223,10 @@ struct inode*
 get_inode(int num) {
 	struct inode *node = get_cached_elem(num, 0);
 	if (node == NULL){
+		// printf("inode num: %d not in cache\n", num);
 		// inode is not in cache
-		int blocknum = (num + 1) * INODESIZE / SECTORSIZE;
-		int offset = ((num + 1) * INODESIZE) % SECTORSIZE;
+		int blocknum = num * INODESIZE / SECTORSIZE + 1;
+		int offset = (num * INODESIZE) % SECTORSIZE;
 		node = malloc(INODESIZE);
 		read_with_offset(blocknum, node, offset, INODESIZE);
 
@@ -224,33 +236,12 @@ get_inode(int num) {
 
 		// Cache the new block
 		insert_elem_in_cache(num, node, 0);
+		if (get_cached_elem(num, 0) == NULL)
+			printf("Cached elem is null just after caching\n");
 	}
 	return node;
 }
 
-
-
-int
-main() {
-	// Read FS HEADER
-	read_with_offset(1, &header, 0, INODESIZE);
-	num_inodes = header.num_inodes;
-	num_blocks = header.num_blocks;
-
-	struct my_msg1 *msg = malloc(sizeof(struct my_msg1));
-
-	int senderid = Receive(msg);
-
-	if (msg->type == OPEN) {
-		struct my_msg2 *msg2 = (struct my_msg2*)msg;
-		char *pathname = malloc(msg2->data2);
-		int len = msg2->data2;
-		int dir_inode_num = msg2->data1;
-		CopyFrom(senderid, pathname, msg2->ptr, len);
-		_Open(msg2->ptr, dir_inode_num);
-	}
-
-}
 
 
 int
@@ -268,19 +259,26 @@ get_inode_num_from_path(char *pathname, int dir_inode_num) {
 	}
 
 	char* token = strtok(pathname, "/");
+	// printf("token: %s\n", token);
 	struct inode *dirnode = get_inode(dir_inode_num);
+	// printf("dir_inode_num: %d\tdirnode->type: %d\n", dir_inode_num, dirnode->type);
 	int inum;
 
 	while (token != NULL && dirnode->type == INODE_DIRECTORY) {
 		inum = get_inode_in_dir(token, dir_inode_num);
+		if (inum == -1) {
+			printf("File not found\n");
+			return -1;
+		}
 		dir_inode_num = inum;
 		dirnode = get_inode(dir_inode_num);
-        printf("Token: %s\n", token);
+        // printf("Token: %s\n", token);
         token = strtok(NULL, "/");
     }
 
     if (token != NULL) {
     	printf("Not done parsing path but found non-directory\n");
+    	return -1;
     } else {
     	return inum;
     }
@@ -289,6 +287,7 @@ get_inode_num_from_path(char *pathname, int dir_inode_num) {
 
 void
 copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
+	// printf("COPYING DATA FROM INODE num: %d\toffset: %d\tsize: %d\n", inodenum, offset, size);
 	struct inode *node = get_inode(inodenum);
 	int size_copied = 0;
 
@@ -299,6 +298,7 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 
 	// COPY FROM FIRST BLOCK
 	if (offset * size <= SECTORSIZE) {
+		printf("here1\n");
 		// just copy part of the first block starting at offset
 		memcpy(buf, block + offset, size);
 		return;
@@ -351,19 +351,22 @@ get_dir_entries(int inum) {
 	char *dir_entries = malloc(dirnode->size);
 	copy_data_from_inode(dir_entries, inum, 0, dirnode->size);
 
-
 	return dir_entries;
 }
 
 int
 get_inode_in_dir(char *name, int dir_inode_num) {
+	printf("GETTING INODE IN DIR\n");
 	struct inode *dirnode = get_inode(dir_inode_num);
-	char *dir_entries = get_dir_entries(dirnode);
+
+	char *dir_entries = get_dir_entries(dir_inode_num);
 	int namelength = strlen(name);
 	int offset = 0;
 	while (offset < dirnode->size) {
-		int inum = (int)dir_entries[offset];
-		if (strncmp(name, dir_entries[offset + sizeof(int)], namelength) == 0 && inum != 0) {
+		struct dir_entry *entry = (struct dir_entry*)&dir_entries[offset];
+		int inum = entry->inum;
+
+		if (strncmp(name, entry->name, namelength) == 0 && inum != 0) {
 			return inum;
 		}
 		offset += sizeof(struct dir_entry);
@@ -376,12 +379,14 @@ get_inode_in_dir(char *name, int dir_inode_num) {
 
 int
 _Open(char *pathname, int current_inode) {
+	printf("Opening in yfs\n");
 	if (pathname[0] == '/') {
          current_inode = ROOTINODE;
     }
 
+    printf("Current inode: %d\tPathname: %s\n", current_inode, pathname);
     int inum = get_inode_num_from_path(pathname, current_inode);
-
+    printf("Done opening in yfs with inum: %d\n", inum);
     return inum;
 }
 
@@ -421,6 +426,48 @@ _Open(char *pathname, int current_inode) {
 //     //TODO: add stuff to cache probably?
 //     return inodeNum;
 // }
+
+
+int
+main(int argc, char **argv) {
+	// Read FS HEADER
+	printf("IN YFS MAIN\n");
+	Register(FILE_SERVER);
+	read_with_offset(1, &header, 0, INODESIZE);
+	num_inodes = header.num_inodes;
+	num_blocks = header.num_blocks;
+
+	printf("num_inodes: %d\t num_blocks: %d\n", num_inodes, num_blocks);
+
+	if (argc > 1) {
+		if (Fork() == 0) {
+			// Child
+			Exec(argv[1], argv + 1);
+		}
+	}
+
+	struct my_msg1 *msg = malloc(sizeof(struct my_msg1));
+
+	while(1) {
+		printf("Receiving\n");
+		int senderid = Receive(msg);
+		printf("Done receiving from pid: %d, message type: %d\n", senderid, msg->type);
+		if (msg->type == OPEN) {
+			struct my_msg2 *msg2 = (struct my_msg2*)msg;
+			char *pathname = malloc(msg2->data2);
+			int len = msg2->data1;
+			int dir_inode_num = msg2->data2;
+			CopyFrom(senderid, pathname, msg2->ptr, len);
+			int inum = _Open(pathname, dir_inode_num);
+			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
+			msg->data1 = inum;
+			printf("Replying with inum: %d\n", inum);
+			Reply(msg ,senderid);
+
+		}
+	}
+
+}
 
 
 

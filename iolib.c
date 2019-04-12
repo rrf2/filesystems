@@ -30,7 +30,7 @@ struct my_msg2{
 struct file_information open_files[MAX_OPEN_FILES];
 int unused_fd = MAX_OPEN_FILES;
 int flag = 0;
-int inode = ROOTINODE;
+int current_dir_inode = ROOTINODE;
 
 int
 initialize() {
@@ -46,16 +46,16 @@ get_unused_fd(){
 	int i;
 	for (i = 0; i < MAX_OPEN_FILES; i++) {
 		if (open_files[i].inum == 0) {
-			return i; 
+			return i;
 		}
 	}
 }
 
-int 
+int
 Open(char *pathname) {
 
-	struct my_msg2 *msg;
-	if (flag = 0) {
+	struct my_msg2 *msg = malloc(sizeof(struct my_msg2));
+	if (flag == 0) {
 		initialize();
 		flag = 1;
 	}
@@ -65,18 +65,25 @@ Open(char *pathname) {
 	}
 
 	//Create new msg
-	msg -> type = 0;
+	msg -> type = OPEN;
 	msg -> data1 = strlen(pathname);
+	msg -> data2 = current_dir_inode;
 	//TODO: what do I fill in for data field?
-	msg -> ptr = &pathname;
+	msg -> ptr = pathname;
+
 
 	//Send message to kernel
-	int send_message = Send(&msg, -FILE_SERVER);
+	int send_message = Send(msg, -FILE_SERVER);
 	if (send_message == -1) {
+		printf("SEND MESSAGE = -1\n");
 		return -1;
 	}
 
+	int inum = msg->data1;
+	printf("Got inum: %d back from yfs\n", inum);
+
 	int fd;
+
 
 	//if file is already in open_files array, return fd number
 	//TODO: how do I get the file inode number??
@@ -84,9 +91,11 @@ Open(char *pathname) {
 	for(i = 0; i < MAX_OPEN_FILES; i++) {
 		if (open_files[i].inum != 0 && open_files[i].inum == msg -> data1) {
 			fd = i;
+			// open_files[i].inum = inum;
 			return fd;
 		}
 	}
+
 
 	fd = get_unused_fd();
 
@@ -95,7 +104,6 @@ Open(char *pathname) {
 
 	unused_fd--;
 	return fd;
-
 }
 
 
@@ -109,7 +117,7 @@ Close(int fd) {
 	open_files[fd].position = 0;
 	unused_fd++;
 	return 0;
-} 
+}
 
 // int
 // Create(char *pathname) {
@@ -151,7 +159,7 @@ Seek(int fd, int offset, int whence){
 	return 0;
 }
 
-int 
+int
 Link(char *oldname, char *newname){
 	return 0;
 }
@@ -161,33 +169,33 @@ Unlink(char *pathname){
 	return 0;
 }
 
-int 
+int
 Symlink(char* oldname, char* newname){
 	return 0;
 }
 
-int 
+int
 ReadLink(char *pathname, char *buf, int len){
 	return 0;
 }
 
-int 
+int
 MkDir(char *pathname){
 	return 0;
 }
 
-int 
+int
 RmDir(char *pathname){
 	return 0;
 }
 
-int 
+int
 ChDir(char *pathname){
 	return 0;
 }
 
 
-int 
+int
 Stat(char *pathname, struct Stat *statbuf){
 	return 0;
 }

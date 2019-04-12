@@ -90,7 +90,7 @@ struct dir_entry {
 
 /*
  *  A pathname is the character string argument (null-terminated as a
- *  normal C-language character string) that is passed by users on 
+ *  normal C-language character string) that is passed by users on
  *  file system calls, such as Open, Unlink, Link, MkDir, etc.  For
  *  example
  *
@@ -153,7 +153,7 @@ struct dir_entry {
  *  interaction between your YFS library and your YFS server.  The
  *  "msg' should be the address of a C 'struct' that has a size
  *  of 32 bytes, since all messages in Yalnix IPC are of size 32.
- *  You must define your own message structure for communication 
+ *  You must define your own message structure for communication
  *  between your library and your server.  Your server must use
  *  the Yalnix Register kernel call to register itself as service_id
  *  FILE_SERVER.
@@ -165,7 +165,7 @@ struct dir_entry {
  *  would use one or more CopyFrom calls to get the data on a Write
  *  call or to return the data on a Read call.  You would also use
  *  CopyFrom to read a pathname from the client process, since a
- *  pathname in general could be much longer than will fit in a 
+ *  pathname in general could be much longer than will fit in a
  *  constant-sized 32-byte message structure.
  */
 
