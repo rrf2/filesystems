@@ -82,6 +82,11 @@ Open(char *pathname) {
 	int inum = msg->data1;
 	printf("Got inum: %d back from yfs\n", inum);
 
+	if (inum == -1) {
+		printf("File not found\n");
+		return -1;
+	}
+
 	int fd;
 
 

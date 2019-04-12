@@ -18,6 +18,8 @@ struct fs_header header;
 int num_blocks;
 int num_inodes;
 
+int *blockbitmap;
+
 struct my_msg1{
     int type;
     int data1;
@@ -34,20 +36,6 @@ struct my_msg2{
     int data5;
     void *ptr;
 };
-
-// struct inode_cache_entry {
-// 	int num;
-// 	struct inode *node;
-// 	int dirty;
-// 	int num_used;
-// }
-
-// struct block_cache_entry {
-// 	int num;
-// 	char *block;
-// 	int dirty;
-// 	int num_used;
-// };
 
 struct cache_entry {
 	int num;
@@ -85,6 +73,23 @@ void copy_data_from_inode(void *buf, int inodenum, int offset, int size);
 char *get_dir_entries(int inum);
 int get_inode_in_dir(char *name, int dir_inode_num);
 int ReadSector(int sectornum, void *buf);
+int get_free_block();
+int get_free_inode();
+
+int
+get_free_block() {
+	int i = 1;
+	while (blockbitmap[i] && i <= num_blocks) {
+		i ++;
+	}
+	if (i > num_blocks) {
+		printf("NO MORE FREE BLOCKS!\n");
+		return -1;
+	} else {
+		blockbitmap[i] = 1;
+		return i;
+	}
+}
 
 
 // block = 1 -> use block hashtable, otherwise use inode
@@ -390,42 +395,53 @@ _Open(char *pathname, int current_inode) {
     return inum;
 }
 
+int
+get_free_inode_num() {
+	int i = 1;
+	while(i <= num_inodes) {
+		struct inode *node = get_inode(i);
+		if (node->type == INODE_FREE)
+			return i;
+	}
+}
 
-// int _Create(char *pathname, int current_inode, int new_inode) {
-// 	if (current_inode == 0) {
-// 		return ERROR;
-// 	}
 
-// 	char *filename;
-// 	int directory_inum;
-// 	//TODO: Get directory inode number
-// 	//TODO: Get directory inode info
+int _Create(char *pathname, int current_inode, int new_inode) {
+	if (current_inode == 0) {
+		return ERROR;
+	}
+
+	char *filename;
+	int directory_inum;
+	//TODO: Get directory inode number
+	//TODO: Get directory inode info
 
 
-// 	int new_inum = //TODO:Search for the new filename if it already exists
+	int new_inum = get_free_inode();
 
-// 	int i;
-// 	for (i = 0; i<DIRNAMELEN; i++) {
-//         dir_entry->name[i] = '\0';
-//     }
-//     for (i = 0; filename[i] != '\0'; i++) {
-//         dir_entry->name[i] = filename[i];
-//     }
+	int i;
+	// for (i = 0; i<DIRNAMELEN; i++) {
+ //        dir_entry->name[i] = '\0';
+ //    }
 
-//     int block = get_block() //TODO: get block number?
-//     inodeNum = //TODO: Get next free inode
+    for (i = 0; filename[i] != '\0'; i++) {
+        dir_entry->name[i] = filename[i];
+    }
 
-//     struct dir_entry *dir_entry;
+    int block = get_free_block(); //TODO: get block number?
+    inodeNum = //TODO: Get next free inode
 
-//     dir_entry -> inum = inodeNum;
-//     struct inode *inode = get_inode(inodeNum);
-//     inode->type = INODE_REGULAR;
-//     inode->size = 0;
-//     inode->nlink = 1;
+    struct dir_entry *dir_entry;
 
-//     //TODO: add stuff to cache probably?
-//     return inodeNum;
-// }
+    dir_entry -> inum = inodeNum;
+    struct inode *inode = get_inode(inodeNum);
+    inode->type = INODE_REGULAR;
+    inode->size = 0;
+    inode->nlink = 1;
+
+    //TODO: add stuff to cache probably?
+    return inodeNum;
+}
 
 
 int
@@ -436,6 +452,23 @@ main(int argc, char **argv) {
 	read_with_offset(1, &header, 0, INODESIZE);
 	num_inodes = header.num_inodes;
 	num_blocks = header.num_blocks;
+
+
+
+	// Initialize block bitmap
+	blockbitmap = malloc(num_blocks * sizeof(int));
+	blockbitmap[0] = 1;
+	int num_blocks_used = (1 + num_inodes) * sizeof(struct inode) / SECTORSIZE;
+	if (((1 + num_inodes) * sizeof(struct inode)) % SECTORSIZE > 0) {
+		num_blocks_used ++;
+	}
+
+	int i;
+	for (i = 0; i < num_blocks_used; i ++) {
+		blockbitmap[i + 1] = 1;
+	}
+
+
 
 	printf("num_inodes: %d\t num_blocks: %d\n", num_inodes, num_blocks);
 

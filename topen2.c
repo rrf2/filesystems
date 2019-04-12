@@ -8,7 +8,7 @@
 int
 main()
 {
-	printf("\n%d\n\n", Open("/foo"));
+	printf("\n%d\n\n", Open("/.."));
 	printf("\n%d\n\n", Open("/bar"));
 	printf("\n%d\n\n", Open("/foo"));
 	printf("\n%d\n\n", Open("/foo/zzz"));
