@@ -63,7 +63,7 @@ int num_inodes_cached = 0;
 int num_blocks_cached = 0;
 
 
-void *get_cached_elem(int num, int block);
+struct cache_entry *get_cached_elem(int num, int block);
 void insert_elem_in_cache(int num, void *data, int block);
 int remove_lru_block();
 int remove_lru_inode();
@@ -107,7 +107,7 @@ get_free_inode_num() {
 
 
 // block = 1 -> use block hashtable, otherwise use inode
-void *
+struct cache_entry*
 get_cached_elem(int num, int block) {
 	struct list_elem *elem;
 	if (block == 1)
@@ -121,7 +121,7 @@ get_cached_elem(int num, int block) {
 		while (elem != NULL) {
 			struct cache_entry *entry = elem->entry;
 			if (entry->num == num) {
-				return entry->data;
+				return entry;
 			} else {
 				elem = elem->next;
 			}
@@ -247,8 +247,9 @@ remove_lru_inode() {
 
 char *
 get_block(int num) {
-	char *block = get_cached_elem(num, 1);
-	if (block == NULL) {
+	struct cache_entry *block_entry = get_cached_elem(num, 1);
+	char *block;
+	if (block_entry == NULL) {
 		// block is not in cache
 		// printf("Blocknum %d not in cache\n", num);
 
@@ -261,6 +262,8 @@ get_block(int num) {
 
 		// Cache the new block
 		insert_elem_in_cache(num, block, 1);
+	} else {
+		block = block_entry->data;
 	}
 	return block;
 }
@@ -268,8 +271,9 @@ get_block(int num) {
 
 struct inode*
 get_inode(int num) {
-	struct inode *node = get_cached_elem(num, 0);
-	if (node == NULL){
+	struct cache_entry *node_entry = get_cached_elem(num, 0);
+	struct inode *node;
+	if (node_entry == NULL){
 		// printf("inode num: %d not in cache\n", num);
 		// inode is not in cache
 		int blocknum = num * INODESIZE / SECTORSIZE + 1;
@@ -283,8 +287,10 @@ get_inode(int num) {
 
 		// Cache the new block
 		insert_elem_in_cache(num, node, 0);
-		if (get_cached_elem(num, 0) == NULL)
+		if (((struct cache_entry*)(get_cached_elem(num, 0)))->data == NULL)
 			printf("Cached elem is null just after caching\n");
+	} else {
+		node = node_entry->data;
 	}
 	return node;
 }
@@ -608,14 +614,53 @@ int _Create(char *pathname, int current_inode) {
     return new_inum;
 }
 
+int
+_Sync() {
+	int i;
+	for (i=0; i < INODE_HASHTABLE_SIZE; i++) {
+		struct list_elem* elem = inode_hashtable[i];
+		while (elem != NULL) {
+			if (elem->entry->dirty == 1) {
+				elem->entry->dirty = 0;
+				int blocknum = elem->entry->num * INODESIZE / SECTORSIZE + 1;
+				int offset = (elem->entry->num * INODESIZE) % SECTORSIZE;
+				struct cache_entry *block_entry = get_cached_elem(blocknum, 1);
+				char *block = block_entry->data;
+				memcpy(block + offset, elem->entry->data, INODESIZE);
+				block_entry->dirty = 1;
+			}
+			elem = elem->next;
+		}
+	}
+	for (i=0; i < BLOCK_HASHTABLE_SIZE; i++) {
+		struct list_elem *elem = block_hashtable[i];
+		while (elem != NULL) {
+			if (elem->entry->dirty == 1) {
+				WriteSector(elem->entry->num, elem -> entry -> data);
+			}
+			elem = elem->next;
+		}
+	}
+}
+
+
+int
+_Shutdown() {
+	_Sync();
+	printf("%s\n", "File system shutting down...");
+	Exit(0);
+}
 
 int
 main(int argc, char **argv) {
 	// Read FS HEADER
+	printf("YFS MAIN1\n");
 	Register(FILE_SERVER);
 	read_with_offset(1, &header, 0, INODESIZE);
+	printf("YFS MAIN1.1\n");
 	num_inodes = header.num_inodes;
 	num_blocks = header.num_blocks;
+	printf("YFS MAIN2\n");
 
 
 	// Initialize block bitmap
@@ -625,6 +670,8 @@ main(int argc, char **argv) {
 	if (((1 + num_inodes) * sizeof(struct inode)) % SECTORSIZE > 0) {
 		num_blocks_used ++;
 	}
+
+	printf("YFS MAIN3\n");
 
 	int i;
 	for (i = 0; i < num_blocks_used; i ++) {
@@ -673,12 +720,11 @@ main(int argc, char **argv) {
 			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
 			msg->data1 = inum;
 			printf("Replying with inum: %d\n", inum);
-			Reply(msg ,senderid);
+			Reply(msg, senderid);
 		} else if (msg->type == SHUTDOWN) {
 			msg->data1 = 0;
 			Reply(msg, senderid);
-			// _Sync();
-			Exit(0);
+			_Shutdown();
 		}
 	}
 

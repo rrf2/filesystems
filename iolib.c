@@ -4,6 +4,7 @@
 #define OPEN 0
 #define CLOSE 1
 #define CREATE 2
+#define SHUTDOWN 3
 
 struct file_information {
 	int inum;
@@ -222,9 +223,9 @@ Sync(){
 int
 Shutdown(){
 	struct my_msg1 *msg;
-	msg -> type = 16;
+	msg -> type = SHUTDOWN;
 
-	int send_message = Send(&msg, -FILE_SERVER);
+	int send_message = Send(msg, -FILE_SERVER);
 	if (send_message == -1) {
 		return -1;
 	}
