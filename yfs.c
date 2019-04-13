@@ -14,6 +14,7 @@
 #define OPEN 0
 #define CLOSE 1
 #define CREATE 2
+#define SHUTDOWN 3
 
 struct fs_header header;
 int num_blocks;
@@ -551,6 +552,10 @@ int _Create(char *pathname, int current_inode) {
 	printf("Directory inum: %d\n", directory_inum);
 	char *dir_entries = get_dir_entries(directory_inum);
 
+	if (dir_entries == NULL) {
+		return -1;
+	}
+
 
 	int current_inode_num = get_inode_in_dir(filename, directory_inum);
 	if (current_inode_num != ERROR) {
@@ -669,6 +674,11 @@ main(int argc, char **argv) {
 			msg->data1 = inum;
 			printf("Replying with inum: %d\n", inum);
 			Reply(msg ,senderid);
+		} else if (msg->type == SHUTDOWN) {
+			msg->data1 = 0;
+			Reply(msg, senderid);
+			// _Sync();
+			Exit(0);
 		}
 	}
 

@@ -145,6 +145,12 @@ Create(char *pathname) {
 
 	int fd = get_unused_fd();
 
+	int inum = msg->data1;
+
+	if (inum == -1) {
+		return -1;
+	}
+
 	open_files[fd].inum = msg -> data1;
 	open_files[fd].position = 0;
 
