@@ -124,31 +124,34 @@ Close(int fd) {
 	return 0;
 }
 
-// int
-// Create(char *pathname) {
-// 	if (flag == 0) {
-// 		init();
-// 		flag = 1;
-// 	}
+int
+Create(char *pathname) {
+	if (flag == 0) {
+		initialize();
+		flag = 1;
+	}
 
-// 	msg -> type = 2;
-// 	msg -> data1 = strlen(pathname);
-// 	//TODO: what do I fill in for data field?
-// 	msg -> ptr = pathname;
+	struct my_msg2 *msg = malloc(sizeof(struct my_msg2));
+	msg -> type = CREATE;
+	msg -> data1 = strlen(pathname);
+	msg -> data2 = current_dir_inode;
+	msg -> ptr = pathname;
 
-// 	int send_message = Send(&msg, -FILE_SERVER);
-// 	if (send_message == -1) {
-// 		return -1;
-// 	}
+	int send_message = Send(msg, -FILE_SERVER);
+	printf("RECEIVED REPLY\n");
+	if (send_message == -1) {
+		return -1;
+	}
 
-// 	fd = get_unused_fd();
+	int fd = get_unused_fd();
 
-// 	open_files[fd] -> inum = msg -> data1;
-// 	open_files[fd] -> position = 0;
+	open_files[fd].inum = msg -> data1;
+	open_files[fd].position = 0;
 
-// 	unused_fd--;
-// 	return fd;
-// }
+	unused_fd--;
+	printf("RETURNING FROM CREATE iolib\n");
+	return fd;
+}
 
 int
 Read(int fd, void *buf, int size) {

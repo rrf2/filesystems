@@ -9,9 +9,10 @@ int
 main()
 {
 	printf("\n%d\n\n", Create("/foo"));
-	printf("\n%d\n\n", Create("/bar"));
-	printf("\n%d\n\n", Create("/foo"));
-	printf("\n%d\n\n", Create("/foo/zzz"));
+	printf("\n%d\n\n", Open("/foo"));
+	// printf("\n%d\n\n", Create("/bar"));
+	// printf("\n%d\n\n", Create("/foo"));
+	// printf("\n%d\n\n", Create("/foo/zzz"));
 
 	Shutdown();
 }

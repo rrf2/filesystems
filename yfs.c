@@ -8,6 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
+#include <libgen.h>
 
 
 #define OPEN 0
@@ -66,6 +67,7 @@ void insert_elem_in_cache(int num, void *data, int block);
 int remove_lru_block();
 int remove_lru_inode();
 char *get_block(int num);
+struct inode *get_inode(int num);
 int main();
 int read_with_offset(int sectornum, void *buf, int offset, int size);
 int get_inode_num_from_path(char *pathname, int dir_inode);
@@ -74,7 +76,7 @@ char *get_dir_entries(int inum);
 int get_inode_in_dir(char *name, int dir_inode_num);
 int ReadSector(int sectornum, void *buf);
 int get_free_block();
-int get_free_inode();
+int get_free_inode_num();
 
 int
 get_free_block() {
@@ -88,6 +90,17 @@ get_free_block() {
 	} else {
 		blockbitmap[i] = 1;
 		return i;
+	}
+}
+
+int
+get_free_inode_num() {
+	int i = 1;
+	while(i <= num_inodes) {
+		struct inode *node = get_inode(i);
+		if (node->type == INODE_FREE)
+			return i;
+		i ++;
 	}
 }
 
@@ -113,6 +126,34 @@ get_cached_elem(int num, int block) {
 			}
 		}
 		return NULL;
+	}
+}
+
+
+// block = 1 -> use block hashtable, otherwise use inode
+void
+set_dirty(int num, int block) {
+	struct list_elem *elem;
+	if (block == 1)
+		elem = block_hashtable[num % BLOCK_HASHTABLE_SIZE];
+	else
+		elem = inode_hashtable[num % INODE_HASHTABLE_SIZE];
+
+	if (elem == NULL) {
+		printf("TRIED TO SET ELEMENT DIRTY THAT IS NOT IN CACHE!\n");
+		return;
+	} else {
+		while (elem != NULL) {
+			struct cache_entry *entry = elem->entry;
+			if (entry->num == num) {
+				entry->dirty = 1;
+				return;
+			} else {
+				elem = elem->next;
+			}
+		}
+		printf("TRIED TO SET ELEMENT DIRTY THAT IS NOT IN CACHE!\n");
+		return;
 	}
 }
 
@@ -267,9 +308,10 @@ get_inode_num_from_path(char *pathname, int dir_inode_num) {
 	// printf("token: %s\n", token);
 	struct inode *dirnode = get_inode(dir_inode_num);
 	// printf("dir_inode_num: %d\tdirnode->type: %d\n", dir_inode_num, dirnode->type);
-	int inum;
+	int inum = dir_inode_num;
 
 	while (token != NULL && dirnode->type == INODE_DIRECTORY) {
+		printf("Token: %s\n", token);
 		inum = get_inode_in_dir(token, dir_inode_num);
 		if (inum == -1) {
 			printf("File not found\n");
@@ -302,8 +344,7 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 	char *block = get_block(node->direct[num_direct_block]);
 
 	// COPY FROM FIRST BLOCK
-	if (offset * size <= SECTORSIZE) {
-		printf("here1\n");
+	if (offset + size <= SECTORSIZE) {
 		// just copy part of the first block starting at offset
 		memcpy(buf, block + offset, size);
 		return;
@@ -340,8 +381,80 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 	}
 
 	// check if on indirect or on last block
-
 }
+
+///////MUCH WORK TO BE DONE! WE NEED TO ALLOCATE BLOCKS, ETC
+void
+write_data_to_inode(void *buf, int inodenum, int offset, int size) {
+	printf("WRITING DATA TO INODE num: %d\toffset: %d\tsize: %d\n", inodenum, offset, size);
+	set_dirty(inodenum, 0);
+	struct inode *node = get_inode(inodenum);
+	if (offset + size > node->size)
+		node->size = offset + size;
+	int size_written = 0;
+
+	//FIND FIRST BLOCK TO USE and OFFSET
+	int num_direct_block = offset / SECTORSIZE;
+	offset = offset % SECTORSIZE;
+	int blocknum = node->direct[num_direct_block];
+	if (blocknum == 0) {
+		blocknum = get_free_block();
+		node->direct[num_direct_block] = blocknum;
+	}
+	char *block = get_block(blocknum);
+	// COPY FROM FIRST BLOCK
+	if (offset + size <= SECTORSIZE) {
+		printf("here1\n");
+		// just copy part of the first block starting at offset
+		memcpy(block + offset, buf, size);
+		set_dirty(blocknum, 1);
+		return;
+
+	} else {
+		// copy whole first block starting at offset
+		memcpy(block + offset, buf, SECTORSIZE - offset);
+		set_dirty(blocknum, 1);
+		size_written = SECTORSIZE - offset;
+		num_direct_block ++;
+	}
+
+	// COPY FROM FULL BLOCKS
+	while(size - size_written >= SECTORSIZE && num_direct_block < NUM_DIRECT) {
+		// copy the whole block
+		int blocknum = node->direct[num_direct_block];
+		if (blocknum == 0) {
+			blocknum = get_free_block();
+			node->direct[num_direct_block] = blocknum;
+		}
+		block = get_block(blocknum);
+		memcpy(block, buf + size_written, SECTORSIZE);
+		set_dirty(blocknum, 0);
+		size_written = SECTORSIZE - offset;
+		num_direct_block ++;
+	}
+
+	// COPY FROM LAST BLOCK / INDIRECT
+	if (num_direct_block != NUM_DIRECT) {
+		// COPY FROM LAST BLOCK
+		int blocknum = node->direct[num_direct_block];
+		if (blocknum == 0) {
+			blocknum = get_free_block();
+			node->direct[num_direct_block] = blocknum;
+		}
+		block = get_block(blocknum);
+		memcpy(block, buf + size_written, size - size_written);
+		set_dirty(blocknum, 0);
+		return;
+
+	} else {
+		// COPY FROM INDIRECT
+		printf("%s\n", "ON INDIRECT BLOCKS");
+		// TODO - DO THIS
+	}
+
+	// check if on indirect or on last block
+}
+
 
 char *
 get_dir_entries(int inum) {
@@ -357,6 +470,23 @@ get_dir_entries(int inum) {
 	copy_data_from_inode(dir_entries, inum, 0, dirnode->size);
 
 	return dir_entries;
+}
+
+void
+add_dir_entry(int dir_inode_num, struct dir_entry *new_entry) {
+	struct inode *dirnode = get_inode(dir_inode_num);
+	char *dir_entries = get_dir_entries(dir_inode_num);
+	int offset;
+	for (offset=0; offset < dirnode->size; offset += sizeof(struct dir_entry)) {
+		struct dir_entry *entry = (struct dir_entry*)&dir_entries[offset];
+		int inum = entry->inum;
+		if (inum == 0) {
+			write_data_to_inode(new_entry, dir_inode_num, offset, sizeof(struct dir_entry));
+			return;
+		}
+	}
+	write_data_to_inode(new_entry, dir_inode_num, dirnode->size, sizeof(struct dir_entry));
+	return;
 }
 
 int
@@ -395,64 +525,92 @@ _Open(char *pathname, int current_inode) {
     return inum;
 }
 
-int
-get_free_inode_num() {
-	int i = 1;
-	while(i <= num_inodes) {
-		struct inode *node = get_inode(i);
-		if (node->type == INODE_FREE)
-			return i;
-	}
-}
 
-
-int _Create(char *pathname, int current_inode, int new_inode) {
+int _Create(char *pathname, int current_inode) {
 	if (current_inode == 0) {
 		return ERROR;
 	}
+	if (pathname[0] == '/') {
+         current_inode = ROOTINODE;
+    }
 
-	char *filename;
-	int directory_inum;
-	//TODO: Get directory inode number
-	//TODO: Get directory inode info
+    char *dirnamestr = malloc(strlen(pathname));
+    char *filename = malloc(strlen(pathname));
+    memcpy(dirnamestr, pathname, strlen(pathname));
+    memcpy(filename, pathname, strlen(pathname));
+
+	filename = basename(filename);
+	dirnamestr = dirname(dirnamestr);
+	if (strlen(filename) > DIRNAMELEN){
+		printf("Filename too long!");
+		return -1;
+	}
+	printf("Creating file: %s in directory %s from pathname %s\n", filename, dirnamestr, pathname);
+
+	int directory_inum = get_inode_num_from_path(dirnamestr, current_inode);
+	printf("Directory inum: %d\n", directory_inum);
+	char *dir_entries = get_dir_entries(directory_inum);
 
 
-	int new_inum = get_free_inode();
+	int current_inode_num = get_inode_in_dir(filename, directory_inum);
+	if (current_inode_num != ERROR) {
+		struct inode *old_inode = get_inode(current_inode_num);
+		if (old_inode->type == INODE_DIRECTORY) {
+			printf("You tried to create file with same name as directory!\n");
+			return ERROR;
+		} else {
+			old_inode->size = 0;
+			int i;
+			for (i=0; i<NUM_DIRECT; i++) {
+				old_inode->direct[i] = 0;
+			}
+			old_inode->indirect = 0;
+			return current_inode_num;
+		}
+	}
 
-	int i;
-	// for (i = 0; i<DIRNAMELEN; i++) {
- //        dir_entry->name[i] = '\0';
- //    }
+    // Create inode
+    int new_inum = get_free_inode_num();
+    struct inode *node = get_inode(new_inum);
+    node->type = INODE_REGULAR;
+    node->size = 0;
+    node->nlink = 1;
+    node->direct[0] = get_free_block();
+    node->reuse ++;
+    set_dirty(new_inum, 0);
+
+
+
+    // Create dir_entry
+	struct dir_entry *dir_entry = malloc(sizeof(dir_entry));
+    dir_entry->inum = new_inum;
+    int i;
+    for (i=0; i<strlen(filename); i++) {
+    	dir_entry->name[i] = filename[i];
+    }
+    if (strlen(filename) < DIRNAMELEN){
+    	dir_entry->name[strlen(filename)] = (char)'\0';
+    }
+
+    add_dir_entry(directory_inum, dir_entry);
 
     for (i = 0; filename[i] != '\0'; i++) {
         dir_entry->name[i] = filename[i];
     }
 
-    int block = get_free_block(); //TODO: get block number?
-    inodeNum = //TODO: Get next free inode
-
-    struct dir_entry *dir_entry;
-
-    dir_entry -> inum = inodeNum;
-    struct inode *inode = get_inode(inodeNum);
-    inode->type = INODE_REGULAR;
-    inode->size = 0;
-    inode->nlink = 1;
 
     //TODO: add stuff to cache probably?
-    return inodeNum;
+    return new_inum;
 }
 
 
 int
 main(int argc, char **argv) {
 	// Read FS HEADER
-	printf("IN YFS MAIN\n");
 	Register(FILE_SERVER);
 	read_with_offset(1, &header, 0, INODESIZE);
 	num_inodes = header.num_inodes;
 	num_blocks = header.num_blocks;
-
 
 
 	// Initialize block bitmap
@@ -468,9 +626,7 @@ main(int argc, char **argv) {
 		blockbitmap[i + 1] = 1;
 	}
 
-
-
-	printf("num_inodes: %d\t num_blocks: %d\n", num_inodes, num_blocks);
+	printf("Num_inodes: %d\t Num_blocks: %d\n", num_inodes, num_blocks);
 
 	if (argc > 1) {
 		if (Fork() == 0) {
@@ -484,6 +640,10 @@ main(int argc, char **argv) {
 	while(1) {
 		printf("Receiving\n");
 		int senderid = Receive(msg);
+		if (senderid == 0) {
+			printf("DEADLOCK\n");
+			return;
+		}
 		printf("Done receiving from pid: %d, message type: %d\n", senderid, msg->type);
 		if (msg->type == OPEN) {
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
@@ -497,6 +657,18 @@ main(int argc, char **argv) {
 			printf("Replying with inum: %d\n", inum);
 			Reply(msg ,senderid);
 
+		} else if (msg->type == CREATE) {
+			struct my_msg2 *msg2 = (struct my_msg2*)msg;
+			char *pathname = malloc(msg2->data2);
+			int len = msg2->data1;
+			int dir_inode_num = msg2->data2;
+			CopyFrom(senderid, pathname, msg2->ptr, len);
+			printf("Pathname: %s\n", pathname);
+			int inum = _Create(pathname, dir_inode_num);
+			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
+			msg->data1 = inum;
+			printf("Replying with inum: %d\n", inum);
+			Reply(msg ,senderid);
 		}
 	}
 
