@@ -21,11 +21,11 @@
 #define SYMLINK 8
 #define READLINK 9
 #define MKDIR 10
-#define RMDIR 10
-#define CHDIR 10
-#define STAT 11
-#define SYNC 12
-#define SHUTDOWN 13
+#define RMDIR 11
+#define CHDIR 12
+#define STAT 13
+#define SYNC 14
+#define SHUTDOWN 15
 
 struct fs_header header;
 int num_blocks;
@@ -318,8 +318,9 @@ read_with_offset(int sectornum, void *buf, int offset, int size) {
 int
 get_inode_num_from_path(char *pathname, int dir_inode_num) {
 	if (strlen(pathname) == 0) {
-		printf("%s\n", "Pathname has length 0");
-		return ERROR;
+		// printf("%s\n", "Pathname has length 0");
+		// return ERROR;
+		return dir_inode_num;
 	}
 
 
@@ -581,6 +582,13 @@ _Open(char *pathname, int current_inode) {
 	if (pathname[0] == '/') {
          current_inode = ROOTINODE;
     }
+    if (pathname[strlen(pathname) - 1] == '/') {
+    	char *newpath = malloc(strlen(pathname) + 2);
+    	memcpy(newpath, pathname, strlen(pathname));
+    	newpath[strlen(pathname)] = '.';
+    	newpath[strlen(pathname) + 1] = '\0';
+    	pathname = newpath;
+    }
 
     printf("Current inode: %d\tPathname: %s\n", current_inode, pathname);
     int inum = get_inode_num_from_path(pathname, current_inode);
@@ -601,12 +609,30 @@ int _Create(char *pathname, int current_inode) {
 	if (pathname[0] == '/') {
          current_inode = ROOTINODE;
     }
+    if (pathname[strlen(pathname) - 1] == '/') {
+    	char *newpath = malloc(strlen(pathname) + 2);
+    	memcpy(newpath, pathname, strlen(pathname));
+    	newpath[strlen(pathname)] = '.';
+    	newpath[strlen(pathname) + 1] = '\0';
+    	pathname = newpath;
+    }
 
-    char *filename = strrchr(pathname, '/') + 1;
-    char *dirname = malloc(filename - pathname + 1);
-    memcpy(dirname, pathname, filename - pathname);
-    dirname[filename-pathname] = '\0';
+    char *filename;
+    char *dirname;
+
+    if (strchr(pathname, '/') == NULL) {
+    	filename = pathname;
+    	dirname = "";
+    } else {
+    	filename = strrchr(pathname, '/') + 1;
+	    printf("%d\n", &filename - &pathname + 1);
+	    dirname = malloc(&filename - &pathname + 1);
+	    memcpy(dirname, pathname, &filename - &pathname);
+	    dirname[filename-pathname] = '\0';
+    }
+
     printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
+    printf("Filename: %s, filenamelen: %d\n", filename, strlen(filename));
 
 
 	if (strlen(filename) > DIRNAMELEN){
@@ -714,14 +740,38 @@ _MkDir(char *pathname, int current_inode) {
 	if (pathname[0] == '/') {
          current_inode = ROOTINODE;
     }
+    if (pathname[strlen(pathname) - 1] == '/') {
+    	char *newpath = malloc(strlen(pathname) + 2);
+    	memcpy(newpath, pathname, strlen(pathname));
+    	newpath[strlen(pathname)] = '.';
+    	newpath[strlen(pathname) + 1] = '\0';
+    	pathname = newpath;
+    }
 
-    char *filename = strrchr(pathname, '/') + 1;
-    char *dirname = malloc(filename - pathname + 1);
-    memcpy(dirname, pathname, filename - pathname);
-    dirname[filename-pathname] = '\0';
+    // char *filename = strrchr(pathname, '/') + 1;
+    // char *dirname = malloc(filename - pathname + 1);
+    // memcpy(dirname, pathname, filename - pathname);
+    // dirname[filename-pathname] = '\0';
+    // printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
+    // printf("Filename: %s, filenamelen: %d\n", filename, strlen(filename));
+
+
+    char *filename;
+    char *dirname;
+
+    if (strchr(pathname, '/') == NULL) {
+    	filename = pathname;
+    	dirname = "";
+    } else {
+    	filename = strrchr(pathname, '/') + 1;
+	    printf("%d\n", &filename - &pathname + 1);
+	    dirname = malloc(&filename - &pathname + 1);
+	    memcpy(dirname, pathname, &filename - &pathname);
+	    dirname[filename-pathname] = '\0';
+    }
+
     printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
     printf("Filename: %s, filenamelen: %d\n", filename, strlen(filename));
-
 
 	if (strlen(filename) > DIRNAMELEN){
 		printf("Filename too long!");
@@ -787,16 +837,6 @@ _RmDir() {
 	return 0;
 }
 
-// int
-// _ChDir(char *pathname, int current_inode) {
-// 	int inum = get_inode_num_from_path(pathname, current_inode);
-// 	if (get_inode(inum)->type != INODE_DIRECTORY) {
-// 		printf("Requested pathname is not a directory\n");
-// 		return -1;
-// 	}
-// 	return inum;
-// }
-
 int
 _Stat() {
 	return 0;
@@ -834,6 +874,17 @@ _Sync() {
 
 int
 _ChDir(char *pathname, int current_inode) {
+	if (pathname[0] == '/') {
+         current_inode = ROOTINODE;
+    }
+	if (pathname[strlen(pathname) - 1] == '/') {
+    	char *newpath = malloc(strlen(pathname) + 2);
+    	memcpy(newpath, pathname, strlen(pathname));
+    	newpath[strlen(pathname)] = '.';
+    	newpath[strlen(pathname) + 1] = '\0';
+    	pathname = newpath;
+    }
+	printf("Changing directory to: %s\n", pathname);
 	int inum = get_inode_num_from_path(pathname, current_inode);
 	if (get_inode(inum)->type != INODE_DIRECTORY) {
 		printf("Requested pathname is not a directory\n");
@@ -893,6 +944,7 @@ main(int argc, char **argv) {
 		}
 		printf("Done receiving from pid: %d, message type: %d\n", senderid, msg->type);
 		if (msg->type == OPEN) {
+			printf("Received message OPEN\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
 			char *pathname = malloc(msg2->data2);
 			int len = msg2->data1;
@@ -905,8 +957,10 @@ main(int argc, char **argv) {
 			Reply(msg ,senderid);
 
 		} else if (msg->type == CLOSE) {
+			printf("Received message CLOSE\n");
 			_Close();
 		} else if (msg->type == CREATE) {
+			printf("Received message CREATE\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
 			char *pathname = malloc(msg2->data2);
 			int len = msg2->data1;
@@ -933,6 +987,7 @@ main(int argc, char **argv) {
 		} else if (msg->type == READLINK) {
 			_ReadLink();
 		} else if (msg->type == MKDIR) {
+			printf("Received message MKDIR\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
 			char *pathname = malloc(msg2->data2);
 			int len = msg2->data1;
@@ -947,6 +1002,7 @@ main(int argc, char **argv) {
 		} else if (msg->type == RMDIR) {
 			_RmDir();
 		} else if (msg->type == CHDIR) {
+			printf("Received message CHDIR\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
 			char *pathname = malloc(msg2->data2);
 			int len = msg2->data1;
@@ -970,7 +1026,6 @@ main(int argc, char **argv) {
 			_Shutdown();
 		}
 	}
-
 }
 
 

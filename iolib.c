@@ -12,11 +12,11 @@
 #define SYMLINK 8
 #define READLINK 9
 #define MKDIR 10
-#define RMDIR 10
-#define CHDIR 10
-#define STAT 11
-#define SYNC 12
-#define SHUTDOWN 13
+#define RMDIR 11
+#define CHDIR 12
+#define STAT 13
+#define SYNC 14
+#define SHUTDOWN 15
 
 struct file_information {
 	int inum;
@@ -260,7 +260,6 @@ ChDir(char *pathname){
 		flag = 1;
 	}
 	msg -> type = CHDIR;
-	msg -> type = CREATE;
 	msg -> data1 = strlen(pathname);
 	msg -> data2 = current_dir_inode;
 	msg -> ptr = pathname;
