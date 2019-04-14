@@ -4,7 +4,19 @@
 #define OPEN 0
 #define CLOSE 1
 #define CREATE 2
-#define SHUTDOWN 3
+#define READ 3
+#define WRITE 4
+#define SEEK 5
+#define LINK 6
+#define UNLINK 7
+#define SYMLINK 8
+#define READLINK 9
+#define MKDIR 10
+#define RMDIR 10
+#define CHDIR 10
+#define STAT 11
+#define SYNC 12
+#define SHUTDOWN 13
 
 struct file_information {
 	int inum;
@@ -194,35 +206,75 @@ ReadLink(char *pathname, char *buf, int len){
 }
 
 int
-MkDir(char *pathname){
-	return 0;
-}
+MkDir(char *pathname) {
+	struct my_msg2 *msg = malloc(sizeof(struct my_msg2));
 
-int
-RmDir(char *pathname){
-	return 0;
-}
-
-int
-ChDir(char *pathname){
 	if (flag == 0) {
 		initialize();
 		flag = 1;
 	}
 
+	msg -> type = MKDIR;
+	msg -> data1 = strlen(pathname);
+	msg -> data2 = current_dir_inode;
+	msg -> ptr = pathname;
+
+	//Send message to kernel
+	int send_message = Send(msg, -FILE_SERVER);
+	if (send_message == -1) {
+		printf("SEND MESSAGE = -1\n");
+		return -1;
+	}
+	return 0;
+}
+
+int
+RmDir(char *pathname){
 	struct my_msg2 *msg = malloc(sizeof(struct my_msg2));
+
+	if (flag == 0) {
+		initialize();
+		flag = 1;
+	}
+
+	msg -> type = RMDIR;
+	msg -> data1 = strlen(pathname);
+	msg -> data2 = current_dir_inode;
+	msg -> ptr = pathname;
+
+	//Send message to kernel
+	int send_message = Send(msg, -FILE_SERVER);
+	if (send_message == -1) {
+		printf("SEND MESSAGE = -1\n");
+		return -1;
+	}
+	return 0;
+}
+
+int
+ChDir(char *pathname){
+	struct my_msg2 *msg = malloc(sizeof(struct my_msg2));
+
+	if (flag == 0) {
+		initialize();
+		flag = 1;
+	}
+	msg -> type = CHDIR;
 	msg -> type = CREATE;
 	msg -> data1 = strlen(pathname);
 	msg -> data2 = current_dir_inode;
 	msg -> ptr = pathname;
 
+	//Send message to kernel
 	int send_message = Send(msg, -FILE_SERVER);
-	// printf("RECEIVED REPLY\n");
 	if (send_message == -1) {
+		printf("SEND MESSAGE = -1\n");
 		return -1;
 	}
+
 	int inum = msg->data1;
 	current_dir_inode = inum;
+	return 0;
 
 }
 
@@ -234,6 +286,14 @@ Stat(char *pathname, struct Stat *statbuf){
 
 int
 Sync(){
+	struct my_msg1 *msg = malloc(sizeof(struct my_msg1));
+	msg -> type = SYNC;
+
+	int send_message = Send(msg, -FILE_SERVER);
+	if (send_message == -1) {
+		printf("SEND MESSAGE = -1\n");
+		return -1;
+	}
 	return 0;
 }
 

@@ -10,11 +10,22 @@
 #include <stdint.h>
 // #include <libgen.h>
 
-
 #define OPEN 0
 #define CLOSE 1
 #define CREATE 2
-#define SHUTDOWN 3
+#define READ 3
+#define WRITE 4
+#define SEEK 5
+#define LINK 6
+#define UNLINK 7
+#define SYMLINK 8
+#define READLINK 9
+#define MKDIR 10
+#define RMDIR 10
+#define CHDIR 10
+#define STAT 11
+#define SYNC 12
+#define SHUTDOWN 13
 
 struct fs_header header;
 int num_blocks;
@@ -577,6 +588,11 @@ _Open(char *pathname, int current_inode) {
     return inum;
 }
 
+int
+_Close() {
+	return 0;
+}
+
 
 int _Create(char *pathname, int current_inode) {
 	if (current_inode == 0) {
@@ -655,6 +671,121 @@ int _Create(char *pathname, int current_inode) {
     //TODO: add stuff to cache probably?
     return new_inum;
 }
+
+int
+_Read() {
+	return 0;
+}
+
+int
+_Write() {
+	return 0;
+}
+
+int
+_Seek() {
+	return 0;
+}
+
+
+int
+_Link() {
+	return 0;
+}
+
+int
+_UnLink() {
+	return 0;
+}
+
+int
+_SymLink() {
+	return 0;
+}
+
+
+int
+_ReadLink() {
+	return 0;
+}
+
+int
+_MkDir(char *pathname, int current_inode) {
+	if (pathname[0] == '/') {
+         current_inode = ROOTINODE;
+    }
+
+    char *dirnamestr = malloc(strlen(pathname));
+    char *filename = malloc(strlen(pathname));
+    memcpy(dirnamestr, pathname, strlen(pathname));
+    memcpy(filename, pathname, strlen(pathname));
+
+	filename = basename(filename);
+	dirnamestr = dirname(dirnamestr);
+	if (strlen(filename) > DIRNAMELEN){
+		printf("Filename too long!");
+		return -1;
+	}
+
+	int directory_inum = get_inode_num_from_path(dirnamestr, current_inode);
+	printf("Directory inum: %d\n", directory_inum);
+	char *dir_entries = get_dir_entries(directory_inum);
+
+	if (dir_entries != NULL) {
+		printf("%s\n", "Attempting to create duplicate directory!");
+		return ERROR;
+	}
+
+	int new_inum = get_free_inode_num();
+    struct inode *new_inode = get_inode(new_inum);
+    set_dirty(new_inum, 0);
+    new_inode->type = INODE_DIRECTORY;
+    new_inode->nlink = 1;
+    new_inode->size = sizeof(struct dir_entry);
+
+    int new_blocknum = get_free_block();
+    char* new_block = get_block(new_blocknum);
+    new_inode->direct[0] = new_block;
+
+
+    struct dir_entry *dir_entry1 = malloc(sizeof(struct dir_entry));
+	int i;
+	for (i=0; i<strlen(filename); i++) {
+    	dir_entry1->name[i] = filename[i];
+    }
+    dir_entry1->inum = new_inum;
+
+    struct dir_entry *dir_entry2 = malloc(sizeof(struct dir_entry));
+    struct dir_entry *dir_entry3 = malloc(sizeof(struct dir_entry));
+
+    dir_entry2->name[0] = '.';
+    dir_entry2->inum = new_inum;
+    dir_entry3->name[0] = '.';
+    dir_entry3->name[1] = '.';
+    dir_entry3->inum = new_inum;
+    return 0;
+}
+
+int
+_RmDir() {
+	return 0;
+}
+
+int
+_ChDir(char *pathname, int current_inode) {
+	int inum = get_inode_num_from_path(pathname, current_inode);
+	if (get_inode(inum)->type != INODE_DIRECTORY) {
+		printf("Requested pathname is not a directory\n");
+		return -1;
+	}
+	return inum;
+}
+
+int
+_Stat() {
+	return 0;
+}
+
 
 int
 _Sync() {
@@ -757,6 +888,8 @@ main(int argc, char **argv) {
 			printf("Replying with inum: %d\n", inum);
 			Reply(msg ,senderid);
 
+		} else if (msg->type == CLOSE) {
+			_Close();
 		} else if (msg->type == CREATE) {
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
 			char *pathname = malloc(msg2->data2);
@@ -769,7 +902,52 @@ main(int argc, char **argv) {
 			msg->data1 = inum;
 			printf("Replying with inum: %d\n", inum);
 			Reply(msg, senderid);
-
+		} else if (msg->type == READ) {
+			_Read();
+		} else if (msg->type == WRITE) {
+			_Write();
+		} else if (msg->type == SEEK) {
+			_Seek();
+		} else if (msg->type == LINK) {
+			_Link();
+		} else if (msg->type == UNLINK) {
+			_UnLink();
+		} else if (msg->type == SYMLINK) {
+			_SymLink();
+		} else if (msg->type == READLINK) {
+			_ReadLink();
+		} else if (msg->type == MKDIR) {
+			struct my_msg2 *msg2 = (struct my_msg2*)msg;
+			char *pathname = malloc(msg2->data2);
+			int len = msg2->data1;
+			int dir_inode_num = msg2->data2;
+			CopyFrom(senderid, pathname, msg2->ptr, len);
+			printf("Pathname: %s\n", pathname);
+			int inum = _MkDir(pathname, dir_inode_num);
+			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
+			msg->data1 = inum;
+			printf("Replying with inum: %d\n", inum);
+			Reply(msg, senderid);
+		} else if (msg->type == RMDIR) {
+			_RmDir();
+		} else if (msg->type == CHDIR) {
+			struct my_msg2 *msg2 = (struct my_msg2*)msg;
+			char *pathname = malloc(msg2->data2);
+			int len = msg2->data1;
+			int dir_inode_num = msg2->data2;
+			CopyFrom(senderid, pathname, msg2->ptr, len);
+			printf("Pathname: %s\n", pathname);
+			int inum = _ChDir(pathname, dir_inode_num);
+			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
+			msg->data1 = inum;
+			printf("Replying with inum: %d\n", inum);
+			Reply(msg, senderid);
+		} else if (msg->type == STAT) {
+			_Stat();
+		} else if (msg->type == SYNC) {
+			_Sync();
+			msg->data1 = 0;
+			Reply(msg, senderid);
 		} else if (msg->type == SHUTDOWN) {
 			msg->data1 = 0;
 			Reply(msg, senderid);
