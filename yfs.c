@@ -8,7 +8,7 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdint.h>
-#include <libgen.h>
+// #include <libgen.h>
 
 
 #define OPEN 0
@@ -586,20 +586,20 @@ int _Create(char *pathname, int current_inode) {
          current_inode = ROOTINODE;
     }
 
-    char *dirnamestr = malloc(strlen(pathname));
-    char *filename = malloc(strlen(pathname));
-    memcpy(dirnamestr, pathname, strlen(pathname));
-    memcpy(filename, pathname, strlen(pathname));
+    char *filename = strrchr(pathname, '/') + 1;
+    char *dirname = malloc(filename - pathname + 1);
+    memcpy(dirname, pathname, filename - pathname);
+    dirname[filename-pathname] = '\0';
+    printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
 
-	filename = basename(filename);
-	dirnamestr = dirname(dirnamestr);
+
 	if (strlen(filename) > DIRNAMELEN){
 		printf("Filename too long!");
 		return -1;
 	}
-	printf("Creating file: %s in directory %s from pathname %s\n", filename, dirnamestr, pathname);
+	printf("Creating file: %s in directory %s from pathname %s\n", filename, dirname, pathname);
 
-	int directory_inum = get_inode_num_from_path(dirnamestr, current_inode);
+	int directory_inum = get_inode_num_from_path(dirname, current_inode);
 	printf("Directory inum: %d\n", directory_inum);
 	char *dir_entries = get_dir_entries(directory_inum);
 
@@ -687,7 +687,7 @@ _Sync() {
 
 int
 _ChDir(char *pathname, int current_inode) {
-	inum = get_inode_num_from_path(pathname, current_inode);
+	int inum = get_inode_num_from_path(pathname, current_inode);
 	if (get_inode(inum)->type != INODE_DIRECTORY) {
 		printf("Requested pathname is not a directory\n");
 		return -1;
