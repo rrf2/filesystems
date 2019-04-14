@@ -139,7 +139,7 @@ Create(char *pathname) {
 	msg -> ptr = pathname;
 
 	int send_message = Send(msg, -FILE_SERVER);
-	printf("RECEIVED REPLY\n");
+	// printf("RECEIVED REPLY\n");
 	if (send_message == -1) {
 		return -1;
 	}
@@ -156,7 +156,6 @@ Create(char *pathname) {
 	open_files[fd].position = 0;
 
 	unused_fd--;
-	printf("RETURNING FROM CREATE iolib\n");
 	return fd;
 }
 
@@ -206,7 +205,25 @@ RmDir(char *pathname){
 
 int
 ChDir(char *pathname){
-	return 0;
+	if (flag == 0) {
+		initialize();
+		flag = 1;
+	}
+
+	struct my_msg2 *msg = malloc(sizeof(struct my_msg2));
+	msg -> type = CREATE;
+	msg -> data1 = strlen(pathname);
+	msg -> data2 = current_dir_inode;
+	msg -> ptr = pathname;
+
+	int send_message = Send(msg, -FILE_SERVER);
+	// printf("RECEIVED REPLY\n");
+	if (send_message == -1) {
+		return -1;
+	}
+	int inum = msg->data1;
+	current_dir_inode = inum;
+
 }
 
 
@@ -222,7 +239,7 @@ Sync(){
 
 int
 Shutdown(){
-	struct my_msg1 *msg;
+	struct my_msg1 *msg = malloc(sizeof(struct my_msg1));
 	msg -> type = SHUTDOWN;
 
 	int send_message = Send(msg, -FILE_SERVER);

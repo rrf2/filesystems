@@ -74,7 +74,7 @@ int read_with_offset(int sectornum, void *buf, int offset, int size);
 int get_inode_num_from_path(char *pathname, int dir_inode);
 void copy_data_from_inode(void *buf, int inodenum, int offset, int size);
 char *get_dir_entries(int inum);
-int get_inode_in_dir(char *name, int dir_inode_num);
+int get_inode_in_dir(char *name, int dir_inode_num, int length);
 int ReadSector(int sectornum, void *buf);
 int get_free_block();
 int get_free_inode_num();
@@ -311,31 +311,72 @@ get_inode_num_from_path(char *pathname, int dir_inode_num) {
 		return ERROR;
 	}
 
-	char* token = strtok(pathname, "/");
+
+	// char* token = strtok(pathname, "/");
+	char* currstr = pathname;
+	char* nextslash = strchr(pathname, '/');
+
+	if (nextslash == pathname) {
+		dir_inode_num = ROOTINODE;
+		currstr = pathname + 1;
+		nextslash = strchr(currstr, '/');
+	}
+
+	int length;
+
+
 	// printf("token: %s\n", token);
-	struct inode *dirnode = get_inode(dir_inode_num);
+	// struct inode *dirnode = get_inode(dir_inode_num);
 	// printf("dir_inode_num: %d\tdirnode->type: %d\n", dir_inode_num, dirnode->type);
 	int inum = dir_inode_num;
 
-	while (token != NULL && dirnode->type == INODE_DIRECTORY) {
-		printf("Token: %s\n", token);
-		inum = get_inode_in_dir(token, dir_inode_num);
+	while (nextslash != NULL) {// && dirnode->type == INODE_DIRECTORY) {
+		// printf("Token: %s\n", token);
+		length = nextslash - currstr;
+		inum = get_inode_in_dir(currstr, inum, length);
 		if (inum == -1) {
 			printf("File not found\n");
 			return -1;
+		} else if (inum == -2) {
+			printf("Non-directory file on path\n");
+			return -1;
 		}
-		dir_inode_num = inum;
-		dirnode = get_inode(dir_inode_num);
-        // printf("Token: %s\n", token);
-        token = strtok(NULL, "/");
+
+		currstr = nextslash + 1;
+
+		nextslash = strchr(currstr, '/');
     }
 
-    if (token != NULL) {
-    	printf("Not done parsing path but found non-directory\n");
-    	return -1;
+    if (strlen(currstr) == 0) {
+    	// Path terminated in /
+    	if (get_inode(inum)->type != INODE_DIRECTORY) {
+    		printf("Pathname ends in '/' but inode is not a directory\n");
+    		return -1;
+    	} else {
+    		return inum;
+    	}
     } else {
-    	return inum;
+    	// Path not terminated in /
+    	inum = get_inode_in_dir(currstr, inum, strlen(currstr));
+
+    	if (inum == -1) {
+			printf("File not found\n");
+			return -1;
+		} else if (inum == -2) {
+			printf("Non-directory file on path\n");
+			return -1;
+		}
+
+		return inum;
+    	// if (get_inode(inum)->type != INODE_REGULAR) {
+    	// 	printf("Pathname does not end in '/' but inode is not a regular file\n");
+    	// 	return -1;
+    	// } else {
+    	// 	return inum;
+    	// }
     }
+
+	return inum;
 }
 
 
@@ -497,18 +538,22 @@ add_dir_entry(int dir_inode_num, struct dir_entry *new_entry) {
 }
 
 int
-get_inode_in_dir(char *name, int dir_inode_num) {
+get_inode_in_dir(char *name, int dir_inode_num, int length) {
 	printf("GETTING INODE IN DIR\n");
 	struct inode *dirnode = get_inode(dir_inode_num);
+	if (dirnode->type != INODE_DIRECTORY) {
+		printf("Dir_inode_num given: %d is not a directory\n", dir_inode_num);
+		return -2;
+	}
 
 	char *dir_entries = get_dir_entries(dir_inode_num);
-	int namelength = strlen(name);
+	// int namelength = strlen(name);
 	int offset = 0;
 	while (offset < dirnode->size) {
 		struct dir_entry *entry = (struct dir_entry*)&dir_entries[offset];
 		int inum = entry->inum;
 
-		if (strncmp(name, entry->name, namelength) == 0 && inum != 0) {
+		if (strncmp(name, entry->name, length) == 0 && inum != 0) {
 			return inum;
 		}
 		offset += sizeof(struct dir_entry);
@@ -563,7 +608,7 @@ int _Create(char *pathname, int current_inode) {
 	}
 
 
-	int current_inode_num = get_inode_in_dir(filename, directory_inum);
+	int current_inode_num = get_inode_in_dir(filename, directory_inum, strlen(filename));
 	if (current_inode_num != ERROR) {
 		struct inode *old_inode = get_inode(current_inode_num);
 		if (old_inode->type == INODE_DIRECTORY) {
@@ -590,8 +635,6 @@ int _Create(char *pathname, int current_inode) {
     node->reuse ++;
     set_dirty(new_inum, 0);
 
-
-
     // Create dir_entry
 	struct dir_entry *dir_entry = malloc(sizeof(dir_entry));
     dir_entry->inum = new_inum;
@@ -608,7 +651,6 @@ int _Create(char *pathname, int current_inode) {
     for (i = 0; filename[i] != '\0'; i++) {
         dir_entry->name[i] = filename[i];
     }
-
 
     //TODO: add stuff to cache probably?
     return new_inum;
@@ -643,6 +685,16 @@ _Sync() {
 	}
 }
 
+int
+_ChDir(char *pathname, int current_inode) {
+	inum = get_inode_num_from_path(pathname, current_inode);
+	if (get_inode(inum)->type != INODE_DIRECTORY) {
+		printf("Requested pathname is not a directory\n");
+		return -1;
+	}
+	return inum;
+}
+
 
 int
 _Shutdown() {
@@ -654,13 +706,10 @@ _Shutdown() {
 int
 main(int argc, char **argv) {
 	// Read FS HEADER
-	printf("YFS MAIN1\n");
 	Register(FILE_SERVER);
 	read_with_offset(1, &header, 0, INODESIZE);
-	printf("YFS MAIN1.1\n");
 	num_inodes = header.num_inodes;
 	num_blocks = header.num_blocks;
-	printf("YFS MAIN2\n");
 
 
 	// Initialize block bitmap
@@ -671,7 +720,6 @@ main(int argc, char **argv) {
 		num_blocks_used ++;
 	}
 
-	printf("YFS MAIN3\n");
 
 	int i;
 	for (i = 0; i < num_blocks_used; i ++) {
@@ -694,7 +742,7 @@ main(int argc, char **argv) {
 		int senderid = Receive(msg);
 		if (senderid == 0) {
 			printf("DEADLOCK\n");
-			return;
+			_Shutdown();
 		}
 		printf("Done receiving from pid: %d, message type: %d\n", senderid, msg->type);
 		if (msg->type == OPEN) {
@@ -721,6 +769,7 @@ main(int argc, char **argv) {
 			msg->data1 = inum;
 			printf("Replying with inum: %d\n", inum);
 			Reply(msg, senderid);
+
 		} else if (msg->type == SHUTDOWN) {
 			msg->data1 = 0;
 			Reply(msg, senderid);
