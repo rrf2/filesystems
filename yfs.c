@@ -463,7 +463,7 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 	char *block = get_block(blocknum);
 	// COPY FROM FIRST BLOCK
 	if (offset + size <= SECTORSIZE) {
-		printf("here1\n");
+		// printf("here1\n");
 		// just copy part of the first block starting at offset
 		memcpy(block + offset, buf, size);
 		set_dirty(blocknum, 1);
@@ -715,33 +715,37 @@ _MkDir(char *pathname, int current_inode) {
          current_inode = ROOTINODE;
     }
 
-    char *dirnamestr = malloc(strlen(pathname));
-    char *filename = malloc(strlen(pathname));
-    memcpy(dirnamestr, pathname, strlen(pathname));
-    memcpy(filename, pathname, strlen(pathname));
+    char *filename = strrchr(pathname, '/') + 1;
+    char *dirname = malloc(filename - pathname + 1);
+    memcpy(dirname, pathname, filename - pathname);
+    dirname[filename-pathname] = '\0';
+    printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
+    printf("Filename: %s, filenamelen: %d\n", filename, strlen(filename));
 
-	filename = basename(filename);
-	dirnamestr = dirname(dirnamestr);
+
 	if (strlen(filename) > DIRNAMELEN){
 		printf("Filename too long!");
 		return -1;
 	}
 
-	int directory_inum = get_inode_num_from_path(dirnamestr, current_inode);
+	int directory_inum = get_inode_num_from_path(dirname, current_inode);
 	printf("Directory inum: %d\n", directory_inum);
 	char *dir_entries = get_dir_entries(directory_inum);
 
-	if (dir_entries != NULL) {
+
+	if (get_inode_in_dir(filename, directory_inum, strlen(filename)) != ERROR) {
 		printf("%s\n", "Attempting to create duplicate directory!");
 		return ERROR;
 	}
+
+
 
 	int new_inum = get_free_inode_num();
     struct inode *new_inode = get_inode(new_inum);
     set_dirty(new_inum, 0);
     new_inode->type = INODE_DIRECTORY;
-    new_inode->nlink = 1;
-    new_inode->size = sizeof(struct dir_entry);
+    new_inode->nlink = 2;
+    new_inode->size = 2 * sizeof(struct dir_entry);
 
     int new_blocknum = get_free_block();
     char* new_block = get_block(new_blocknum);
@@ -753,16 +757,28 @@ _MkDir(char *pathname, int current_inode) {
 	for (i=0; i<strlen(filename); i++) {
     	dir_entry1->name[i] = filename[i];
     }
+    if (strlen(filename) < DIRNAMELEN){
+    	dir_entry1->name[strlen(filename)] = (char)'\0';
+    }
+
     dir_entry1->inum = new_inum;
+    add_dir_entry(directory_inum, dir_entry1);
 
     struct dir_entry *dir_entry2 = malloc(sizeof(struct dir_entry));
     struct dir_entry *dir_entry3 = malloc(sizeof(struct dir_entry));
 
     dir_entry2->name[0] = '.';
+    dir_entry2->name[1] = '\0';
     dir_entry2->inum = new_inum;
+
     dir_entry3->name[0] = '.';
     dir_entry3->name[1] = '.';
-    dir_entry3->inum = new_inum;
+    dir_entry3->name[2] = '\0';
+    dir_entry3->inum = directory_inum;
+
+    add_dir_entry(new_inum, dir_entry2);
+    add_dir_entry(new_inum, dir_entry3);
+
     return 0;
 }
 
@@ -771,15 +787,15 @@ _RmDir() {
 	return 0;
 }
 
-int
-_ChDir(char *pathname, int current_inode) {
-	int inum = get_inode_num_from_path(pathname, current_inode);
-	if (get_inode(inum)->type != INODE_DIRECTORY) {
-		printf("Requested pathname is not a directory\n");
-		return -1;
-	}
-	return inum;
-}
+// int
+// _ChDir(char *pathname, int current_inode) {
+// 	int inum = get_inode_num_from_path(pathname, current_inode);
+// 	if (get_inode(inum)->type != INODE_DIRECTORY) {
+// 		printf("Requested pathname is not a directory\n");
+// 		return -1;
+// 	}
+// 	return inum;
+// }
 
 int
 _Stat() {
