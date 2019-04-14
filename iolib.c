@@ -260,7 +260,6 @@ ChDir(char *pathname){
 		flag = 1;
 	}
 	msg -> type = CHDIR;
-	struct my_msg2 *msg = malloc(sizeof(struct my_msg2));
 	msg -> type = CREATE;
 	msg -> data1 = strlen(pathname);
 	msg -> data2 = current_dir_inode;
@@ -272,14 +271,11 @@ ChDir(char *pathname){
 		printf("SEND MESSAGE = -1\n");
 		return -1;
 	}
-	return 0;
-	int send_message = Send(msg, -FILE_SERVER);
-	// printf("RECEIVED REPLY\n");
-	if (send_message == -1) {
-		return -1;
-	}
+
 	int inum = msg->data1;
 	current_dir_inode = inum;
+	return 0;
+
 }
 
 

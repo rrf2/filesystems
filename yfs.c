@@ -10,7 +10,7 @@
 #include <stdint.h>
 #include <libgen.h>
 
-
+#define OPEN 0
 #define CLOSE 1
 #define CREATE 2
 #define READ 3
@@ -737,7 +737,7 @@ _MkDir(char *pathname, int current_inode) {
 	}
 
 	int new_inum = get_free_inode_num();
-    struct inode new_inode = get_inode(new_inum);
+    struct inode *new_inode = get_inode(new_inum);
     set_dirty(new_inum, 0);
     new_inode->type = INODE_DIRECTORY;
     new_inode->nlink = 1;
@@ -748,14 +748,15 @@ _MkDir(char *pathname, int current_inode) {
     new_inode->direct[0] = new_block;
 
 
-    struct dir_entry *dir_entry1 = malloc(sizeof(dir_entry));
+    struct dir_entry *dir_entry1 = malloc(sizeof(struct dir_entry));
+	int i;
 	for (i=0; i<strlen(filename); i++) {
     	dir_entry1->name[i] = filename[i];
     }
     dir_entry1->inum = new_inum;
 
-    struct dir_entry *dir_entry2 = malloc(sizeof(dir_entry));
-    struct dir_entry *dir_entry3 = malloc(sizeof(dir_entry));
+    struct dir_entry *dir_entry2 = malloc(sizeof(struct dir_entry));
+    struct dir_entry *dir_entry3 = malloc(sizeof(struct dir_entry));
 
     dir_entry2->name[0] = '.';
     dir_entry2->inum = new_inum;
@@ -772,7 +773,7 @@ _RmDir() {
 
 int
 _ChDir(char *pathname, int current_inode) {
-	inum = get_inode_num_from_path(pathname, current_inode);
+	int inum = get_inode_num_from_path(pathname, current_inode);
 	if (get_inode(inum)->type != INODE_DIRECTORY) {
 		printf("Requested pathname is not a directory\n");
 		return -1;
@@ -919,7 +920,17 @@ main(int argc, char **argv) {
 		} else if (msg->type == RMDIR) {
 			_RmDir();
 		} else if (msg->type == CHDIR) {
-			_ChDir();
+			struct my_msg2 *msg2 = (struct my_msg2*)msg;
+			char *pathname = malloc(msg2->data2);
+			int len = msg2->data1;
+			int dir_inode_num = msg2->data2;
+			CopyFrom(senderid, pathname, msg2->ptr, len);
+			printf("Pathname: %s\n", pathname);
+			int inum = _ChDir(pathname, dir_inode_num);
+			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
+			msg->data1 = inum;
+			printf("Replying with inum: %d\n", inum);
+			Reply(msg, senderid);
 		} else if (msg->type == STAT) {
 			_Stat();
 		} else if (msg->type == SYNC) {
