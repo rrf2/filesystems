@@ -663,11 +663,6 @@ _Open(char *pathname, int current_inode) {
     return inum;
 }
 
-int
-_Close() {
-	return 0;
-}
-
 
 int _Create(char *pathname, int current_inode) {
 	if (current_inode == 0) {
@@ -776,12 +771,6 @@ _Write(int inum, void *buf, int offset, int size) {
 	}
 	return write_data_to_inode(buf, inum, offset, size);
 }
-
-int
-_Seek() {
-	return 0;
-}
-
 
 
 int
