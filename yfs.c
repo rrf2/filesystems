@@ -640,11 +640,8 @@ int _Create(char *pathname, int current_inode) {
          current_inode = ROOTINODE;
     }
     if (pathname[strlen(pathname) - 1] == '/') {
-    	char *newpath = malloc(strlen(pathname) + 2);
-    	memcpy(newpath, pathname, strlen(pathname));
-    	newpath[strlen(pathname)] = '.';
-    	newpath[strlen(pathname) + 1] = '\0';
-    	pathname = newpath;
+    	printf("Cannot Create . file\n");
+    	return ERROR;
     }
 
     char *filename;
@@ -744,19 +741,75 @@ _Seek() {
 }
 
 
-// int
-// _Link(char *oldname, char *newname, int current_inode) {
-// 	old_inode_num = get_inode_num_from_path(oldname);
-// 	new_inode_num = get_inode_num_from_path(newname);
-// 	old_inode = get_inode(old_inode_num);
-// 	if (old_inode->type == INODE_DIRECTORY) {
-// 		printf("You cannot link to a directory!\n");
-// 		return ERROR;
-// 	}
-// 	// new_inode = get_inode(new_inode_num);
 
-// 	return 0;
-// }
+int
+_Link(char *oldname, char *newname, int current_inode) {
+	if (current_inode == 0) {
+		return ERROR;
+	}
+
+	if (oldname[strlen(oldname) - 1] == '/') {
+    	char *newpath = malloc(strlen(oldname) + 2);
+    	memcpy(newpath, oldname, strlen(oldname));
+    	newpath[strlen(oldname)] = '.';
+    	newpath[strlen(oldname) + 1] = '\0';
+    	oldname = newpath;
+    }
+
+    printf("Current inode: %d\tOldname: %s\n", current_inode, oldname);
+	old_inode_num = get_inode_num_from_path(oldname);
+	if (old_inode_num == -1) {
+		printf("No file %s exists\n", oldname);
+	}
+	old_inode = get_inode(old_inode_num);
+	if (old_inode->type == INODE_DIRECTORY) {
+		printf("You cannot link to a directory!\n");
+		return ERROR;
+	}
+
+
+
+	if (newname[0] == '/') {
+         current_inode = ROOTINODE;
+    }
+    if (newname[strlen(newname) - 1] == '/') {
+    	printf("Cannot Create . file\n");
+    	return ERROR;
+    }
+
+    char *filename;
+    char *dirname;
+
+    if (strchr(newname, '/') == NULL) {
+    	filename = newname;
+    	dirname = "";
+    } else {
+    	filename = strrchr(newname, '/') + 1;
+	    printf("%d\n", &filename - &newname + 1);
+	    dirname = malloc(&filename - &newname + 1);
+	    memcpy(dirname, newname, &filename - &newname);
+	    dirname[filename-newname] = '\0';
+    }
+
+
+    printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
+    printf("Filename: %s, filenamelen: %d\n", filename, strlen(filename));
+
+    struct dir_entry *new_dir_entry = malloc(sizeof(struct dir_entry));
+    new_dir_entry->inum = old_inode_num;
+    int i;
+	for (i=0; i<strlen(filename); i++) {
+    	new_dir_entry->name[i] = filename[i];
+    }
+    if (strlen(filename) < DIRNAMELEN){
+    	new_dir_entry->name[strlen(filename)] = (char)'\0';
+    }
+    int dir_inum = get_inode_num_from_path(dirname);
+    add_dir_entry(dir_inum, new_dir_entry);
+
+	old_inode->nlink++;
+	return 0;
+}
 
 int
 _UnLink(char *pathname, int current_inode) {
@@ -841,10 +894,20 @@ _UnLink(char *pathname, int current_inode) {
 
 
 int
-_SymLink() {
-	return 0;
-}
+_SymLink(char *oldname, char *newname, int current_inode) {
+	if (current_inode == 0) {
+		return ERROR;
+	}
 
+
+	int new_inum = _Create(newname, current_inode);
+	if (new_inum == -1) {
+		return ERROR;
+	}
+	write_data_to_inode(oldname, new_inum, 0, strlen(oldname));
+	return 0;
+
+}
 
 int
 _ReadLink(char *pathname, char *buf, int len, int current_inode, int sender_pid) {
@@ -890,14 +953,6 @@ _MkDir(char *pathname, int current_inode) {
     	newpath[strlen(pathname) + 1] = '\0';
     	pathname = newpath;
     }
-
-    // char *filename = strrchr(pathname, '/') + 1;
-    // char *dirname = malloc(filename - pathname + 1);
-    // memcpy(dirname, pathname, filename - pathname);
-    // dirname[filename-pathname] = '\0';
-    // printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
-    // printf("Filename: %s, filenamelen: %d\n", filename, strlen(filename));
-
 
     char *filename;
     char *dirname;
@@ -975,76 +1030,76 @@ _MkDir(char *pathname, int current_inode) {
     return 0;
 }
 
-// int
-// _RmDir() {
-// 	if (current_inode == 0) {
-// 		return ERROR;
-// 	}
-// 	if (pathname[0] == '/') {
-//          current_inode = ROOTINODE;
-//     }
-//     if (pathname[strlen(pathname) - 1] == '/') {
-//     	printf("Cannot remove . directory\n");
-//     	return -1;
-//     }
-//     if (pathname[strlen(pathname) - 1] == '.') {
-//     	printf("Cannot remove . or .. directory\n");
-//     	return -1;
-//     }
+int
+_RmDir() {
+	if (current_inode == 0) {
+		return ERROR;
+	}
+	if (pathname[0] == '/') {
+         current_inode = ROOTINODE;
+    }
+    if (pathname[strlen(pathname) - 1] == '/') {
+    	printf("Cannot remove . directory\n");
+    	return -1;
+    }
+    if (pathname[strlen(pathname) - 1] == '.') {
+    	printf("Cannot remove . or .. directory\n");
+    	return -1;
+    }
 
-//     char *filename;
-//     char *dirname;
+    char *filename;
+    char *dirname;
 
-//     if (strchr(pathname, '/') == NULL) {
-//     	filename = pathname;
-//     	dirname = "";
-//     } else {
-//     	filename = strrchr(pathname, '/') + 1;
-// 	    printf("%d\n", &filename - &pathname + 1);
-// 	    dirname = malloc(&filename - &pathname + 1);
-// 	    memcpy(dirname, pathname, &filename - &pathname);
-// 	    dirname[filename-pathname] = '\0';
-//     }
+    if (strchr(pathname, '/') == NULL) {
+    	filename = pathname;
+    	dirname = "";
+    } else {
+    	filename = strrchr(pathname, '/') + 1;
+	    printf("%d\n", &filename - &pathname + 1);
+	    dirname = malloc(&filename - &pathname + 1);
+	    memcpy(dirname, pathname, &filename - &pathname);
+	    dirname[filename-pathname] = '\0';
+    }
 
-//     printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
-//     printf("Filename: %s, filenamelen: %d\n", filename, strlen(filename));
+    printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
+    printf("Filename: %s, filenamelen: %d\n", filename, strlen(filename));
 
-//     int upper_directory_inum = get_inode_num_from_path(dirname, current_inode);
-// 	printf("Upper directory inum: %d\n", upper_directory_inum);
-// 	char *upper_dir_entries = get_dir_entries(directory_inum);
+    int upper_directory_inum = get_inode_num_from_path(dirname, current_inode);
+	printf("Upper directory inum: %d\n", upper_directory_inum);
+	char *upper_dir_entries = get_dir_entries(directory_inum);
 
-// 	int rm_directory_inum = get_inode_in_dir(filename, upper_directory_inum, strlen(filename));
-// 	if (rm_directory_inum == -1) {
-// 		print("Directory does not exist\n");
-// 		return ERROR;
-// 	}
-// 	rm_dir_inode = get_inode(rm_directory_inum);
-// 	rm_dir_entries = get_dir_entries(rm_directory_inum);
+	int rm_directory_inum = get_inode_in_dir(filename, upper_directory_inum, strlen(filename));
+	if (rm_directory_inum == -1) {
+		print("Directory does not exist\n");
+		return ERROR;
+	}
+	rm_dir_inode = get_inode(rm_directory_inum);
+	rm_dir_entries = get_dir_entries(rm_directory_inum);
 
 
-// 	int offset;
-// 	for (offset=0; offset < rm_dir_inode->size; offset += sizeof(struct dir_entry)) {
-// 		struct dir_entry *entry = (struct dir_entry*)&rm_dir_entries[offset];
-// 		int inum = entry->inum;
-// 		if (inum != 0) {
-// 			printf("Directory %d is not empty and cannot be removed (still has inode %d)!\n", rm_directory_inum, inum);
-// 			return ERROR;
-// 		}
-// 	}
+	int offset;
+	for (offset=0; offset < rm_dir_inode->size; offset += sizeof(struct dir_entry)) {
+		struct dir_entry *entry = (struct dir_entry*)&rm_dir_entries[offset];
+		int inum = entry->inum;
+		if (inum != 0) {
+			printf("Directory %d is not empty and cannot be removed (still has inode %d)!\n", rm_directory_inum, inum);
+			return ERROR;
+		}
+	}
 
-// 	remove_dir_entry(upper_directory_inum, rm_directory_inum);
-// 	rm_dir_inode->type = INODE_FREE;
-// 	rm_dir_inode->size = 0;
-// 	rm_dir_inode->nlink = 0;
-// 	int i;
-// 	for (i=0; i<NUM_DIRECT;i++) {
-// 		blockbitmap[rm_dir_inode->direct[i]] = 0;
-// 		rm_dir_inode->direct[i] = 0
-// 	}
-// 	//TODO: FREE INDIRECT blocks
-// 	return 0;
+	remove_dir_entry(upper_directory_inum, rm_directory_inum);
+	rm_dir_inode->type = INODE_FREE;
+	rm_dir_inode->size = 0;
+	rm_dir_inode->nlink = 0;
+	int i;
+	for (i=0; i<NUM_DIRECT;i++) {
+		blockbitmap[rm_dir_inode->direct[i]] = 0;
+		rm_dir_inode->direct[i] = 0
+	}
+	//TODO: FREE INDIRECT blocks
+	return 0;
 
-// }
+}
 
 int
 _Stat() {
