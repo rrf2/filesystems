@@ -734,20 +734,35 @@ _Seek() {
 
 int
 _Link(char *oldname, char *newname, int current_inode) {
+	if (current_inode == 0) {
+		return ERROR;
+	}
+
+	if (oldname[strlen(oldname) - 1] == '/') {
+    	char *newpath = malloc(strlen(oldname) + 2);
+    	memcpy(newpath, oldname, strlen(oldname));
+    	newpath[strlen(oldname)] = '.';
+    	newpath[strlen(oldname) + 1] = '\0';
+    	oldname = newpath;
+    }
+
+    printf("Current inode: %d\tOldname: %s\n", current_inode, oldname);
 	old_inode_num = get_inode_num_from_path(oldname);
+	if (old_inode_num == -1) {
+		printf("No file %s exists\n", oldname);
+	}
 	old_inode = get_inode(old_inode_num);
 	if (old_inode->type == INODE_DIRECTORY) {
 		printf("You cannot link to a directory!\n");
 		return ERROR;
 	}
 
-	if (current_inode == 0) {
-		return ERROR;
-	}
-	if (pathname[0] == '/') {
+
+
+	if (newname[0] == '/') {
          current_inode = ROOTINODE;
     }
-    if (pathname[strlen(pathname) - 1] == '/') {
+    if (newname[strlen(newname) - 1] == '/') {
     	printf("Cannot Create . file\n");
     	return ERROR;
     }
@@ -755,16 +770,17 @@ _Link(char *oldname, char *newname, int current_inode) {
     char *filename;
     char *dirname;
 
-    if (strchr(pathname, '/') == NULL) {
-    	filename = pathname;
+    if (strchr(newname, '/') == NULL) {
+    	filename = newname;
     	dirname = "";
     } else {
-    	filename = strrchr(pathname, '/') + 1;
-	    printf("%d\n", &filename - &pathname + 1);
-	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname);
-	    dirname[filename-pathname] = '\0';
+    	filename = strrchr(newname, '/') + 1;
+	    printf("%d\n", &filename - &newname + 1);
+	    dirname = malloc(&filename - &newname + 1);
+	    memcpy(dirname, newname, &filename - &newname);
+	    dirname[filename-newname] = '\0';
     }
+
 
     printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
     printf("Filename: %s, filenamelen: %d\n", filename, strlen(filename));
@@ -792,8 +808,19 @@ _UnLink() {
 }
 
 int
-_SymLink() {
+_SymLink(char *oldname, char *newname, int current_inode) {
+	if (current_inode == 0) {
+		return ERROR;
+	}
+
+
+	int new_inum = _Create(newname, current_inode);
+	if (new_inum == -1) {
+		return ERROR;
+	}
+	write_data_to_inode(oldname, new_inum, 0, strlen(oldname));
 	return 0;
+
 }
 
 int
