@@ -40,6 +40,7 @@ struct my_msg1{
     void *ptr;
 };
 
+
 struct my_msg2{
     int type;
     int data1;
@@ -83,7 +84,8 @@ struct inode *get_inode(int num);
 int main();
 int read_with_offset(int sectornum, void *buf, int offset, int size);
 int get_inode_num_from_path(char *pathname, int dir_inode);
-void copy_data_from_inode(void *buf, int inodenum, int offset, int size);
+int copy_data_from_inode(void *buf, int inodenum, int offset, int size);
+int write_data_to_inode(void *buf, int inodenum, int offset, int size);
 char *get_dir_entries(int inum);
 int get_inode_in_dir(char *name, int dir_inode_num, int length);
 int ReadSector(int sectornum, void *buf);
@@ -103,6 +105,25 @@ get_free_block() {
 		blockbitmap[i] = 1;
 		return i;
 	}
+}
+
+void
+free_inode_and_blocks(int inum) {
+	struct *inode node = get_inode(inum);
+	node->type = INODE_FREE;
+	node->size = 0;
+	node->nlink = 0;
+
+	int i;
+	for (i=0; i<NUM_DIRECT;i++) {
+		int blocknum = node->direct[i]
+		blockbitmap[blocknum] = 0;
+		memset(get_block(blocknum), '\0', SECTORSIZE);
+		set_dirty(blocknum, 1);
+		rm_dir_inode->direct[i] = 0
+	}
+	set_dirty(inum, 0);
+	//TODO: FREE INDIRECT blocks
 }
 
 int
@@ -392,7 +413,7 @@ get_inode_num_from_path(char *pathname, int dir_inode_num) {
 }
 
 
-void
+int
 copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 	// printf("COPYING DATA FROM INODE num: %d\toffset: %d\tsize: %d\n", inodenum, offset, size);
 	struct inode *node = get_inode(inodenum);
@@ -401,17 +422,24 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 	//FIND FIRST BLOCK TO USE and OFFSET
 	int num_direct_block = offset / SECTORSIZE;
 	offset = offset % SECTORSIZE;
-	char *block = get_block(node->direct[num_direct_block]);
+	int blocknum = node->direct[num_direct_block];
+	char *block = get_block(blocknum);
 
 	// COPY FROM FIRST BLOCK
 	if (offset + size <= SECTORSIZE) {
 		// just copy part of the first block starting at offset
-		memcpy(buf, block + offset, size);
-		return;
+		if (blocknum == 0) {
+			memset(buf + offset, '\0', size);
+		else
+			memcpy(buf, block + offset, size);
+		return size;
 
 	} else {
 		// copy whole first block starting at offset
-		memcpy(buf, block + offset, SECTORSIZE - offset);
+		if (blocknum == 0)
+			memset(buf + offset, '\0', SECTORSIZE - offset);
+		else
+			memcpy(buf, block + offset, SECTORSIZE - offset);
 		size_copied = SECTORSIZE - offset;
 		num_direct_block ++;
 	}
@@ -419,8 +447,13 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 	// COPY FROM FULL BLOCKS
 	while(size - size_copied >= SECTORSIZE && num_direct_block < NUM_DIRECT) {
 		// copy the whole block
-		block = get_block(node->direct[num_direct_block]);
-		memcpy(buf + size_copied, block, SECTORSIZE);
+		blocknum = node->direct[num_direct_block];
+		if (blocknum == 0)
+			memset(buf + size_copied, '\0', SECTORSIZE);
+		else {
+			block = get_block(blocknum);
+			memcpy(buf + size_copied, block, SECTORSIZE);
+		}
 		size_copied = SECTORSIZE - offset;
 		num_direct_block ++;
 	}
@@ -428,9 +461,14 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 	// COPY FROM LAST BLOCK / INDIRECT
 	if (num_direct_block != NUM_DIRECT) {
 		// COPY FROM LAST BLOCK
-		block = get_block(node->direct[num_direct_block]);
-		memcpy(buf + size_copied, block, size - size_copied);
-		return;
+		blocknum = node->direct[num_direct_block];
+		if (blocknum == 0) {
+			memset(buf + size_copied, '\0', size - size_copied);
+		} else {
+			block = get_block(blocknum);
+			memcpy(buf + size_copied, block, size - size_copied);
+		}
+		return size;
 
 
 
@@ -439,12 +477,11 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 		printf("%s\n", "ON INDIRECT BLOCKS");
 		// TODO - DO THIS
 	}
-
+	return ERROR;
 	// check if on indirect or on last block
 }
 
-///////MUCH WORK TO BE DONE! WE NEED TO ALLOCATE BLOCKS, ETC
-void
+int
 write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 	printf("WRITING DATA TO INODE num: %d\toffset: %d\tsize: %d\n", inodenum, offset, size);
 	set_dirty(inodenum, 0);
@@ -468,7 +505,7 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 		// just copy part of the first block starting at offset
 		memcpy(block + offset, buf, size);
 		set_dirty(blocknum, 1);
-		return;
+		return size;
 
 	} else {
 		// copy whole first block starting at offset
@@ -504,14 +541,14 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 		block = get_block(blocknum);
 		memcpy(block, buf + size_written, size - size_written);
 		set_dirty(blocknum, 0);
-		return;
+		return size;
 
 	} else {
 		// COPY FROM INDIRECT
 		printf("%s\n", "ON INDIRECT BLOCKS");
 		// TODO - DO THIS
 	}
-
+	return ERROR;
 	// check if on indirect or on last block
 }
 
@@ -717,13 +754,18 @@ int _Create(char *pathname, int current_inode) {
 }
 
 int
-_Read() {
-	return 0;
+_Read(int inum, void *buf, int offset, int size) {
+	return copy_data_from_inode(buf, inum, offset, size);
 }
 
 int
-_Write() {
-	return 0;
+_Write(int inum, void *buf, int offset, int size) {
+	struct inode *node = get_inode(inum);
+	if (node->type == INODE_DIRECTORY) {
+		printf("Cannot write to directory file\n");
+		return ERROR;
+	}
+	return write_data_to_inode(buf, inum, offset, size);
 }
 
 int
@@ -798,6 +840,7 @@ _Link(char *oldname, char *newname, int current_inode) {
     add_dir_entry(dir_inum, new_dir_entry);
 
 	old_inode->nlink++;
+	set_dirty(old_inode, 0);
 
 	return 0;
 }
@@ -847,7 +890,7 @@ _UnLink(char *pathname, int current_inode) {
 	int unlinking_inum = get_inode_in_dir(filename, directory_inum, strlen(filename));
 
 	struct inode *unlinking_inode = get_inode(unlinking_inum);
-	
+
 	if (unlinking_inode->nlink > 1) {
 		//remove from containing directory
 		// dir_entries->inum = 0;
@@ -869,10 +912,7 @@ _UnLink(char *pathname, int current_inode) {
 		// set_dirty(directory_inum, 0);
 
 		remove_dir_entry(directory_inum, unlinking_inum);
-
-		unlinking_inode->type = INODE_FREE;
-		unlinking_inode->nlink = 0;
-		set_dirty(unlinking_inum,0);
+		free_inode_and_blocks(unlinking_inum);
 	}
 
 	else {
@@ -889,7 +929,6 @@ _SymLink(char *oldname, char *newname, int current_inode) {
 	if (current_inode == 0) {
 		return ERROR;
 	}
-
 
 	int new_inum = _Create(newname, current_inode);
 	if (new_inum == -1) {
@@ -1052,15 +1091,7 @@ _RmDir() {
 	}
 
 	remove_dir_entry(upper_directory_inum, rm_directory_inum);
-	rm_dir_inode->type = INODE_FREE;
-	rm_dir_inode->size = 0;
-	rm_dir_inode->nlink = 0;
-	int i;
-	for (i=0; i<NUM_DIRECT;i++) {
-		blockbitmap[rm_dir_inode->direct[i]] = 0;
-		rm_dir_inode->direct[i] = 0
-	}
-	//TODO: FREE INDIRECT blocks
+	free_inode_and_blocks(rm_directory_inum);
 	return 0;
 
 }
@@ -1201,9 +1232,31 @@ main(int argc, char **argv) {
 			printf("Replying with inum: %d\n", inum);
 			Reply(msg, senderid);
 		} else if (msg->type == READ) {
-			_Read();
+			printf("Received message READ\n");
+			struct my_msg2 *msg2 = (struct my_msg2*)msg;
+			int inum = msg2->data2;
+			int size = msg2->data3;
+			int offset = msg2->data4;
+			char *readbuf = malloc(size);
+			int result = _Read(int inum, void *readbuf, int offset, int size);
+			CopyTo(senderid, readbuf, msg2->ptr, size);
+			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
+			msg->data1 = result;
+			printf("Replying with result: %d\n", result);
+			Reply(msg, senderid);
 		} else if (msg->type == WRITE) {
-			_Write();
+			printf("Received message WRITE\n");
+			struct my_msg2 *msg2 = (struct my_msg2*)msg;
+			int inum = msg2->data2;
+			int size = msg2->data3;
+			int offset = msg2->data4;
+			char *writebuf = malloc(size);
+			CopyFrom(senderid, writebuf, msg2->ptr, size);
+			int result = _Write(int inum, void *writebuf, int offset, int size);
+			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
+			msg->data1 = result;
+			printf("Replying with result: %d\n", result);
+			Reply(msg, senderid);
 		} else if (msg->type == SEEK) {
 			_Seek();
 		} else if (msg->type == LINK) {
