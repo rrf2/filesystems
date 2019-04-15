@@ -40,6 +40,16 @@ struct my_msg2{
 	void *ptr;
 };
 
+//USED IN READLINK
+struct my_msg3{
+	int type;
+	int len;
+	int cur_inode;
+	int data;
+	char *buf;
+	void *ptr;
+}
+
 struct file_information open_files[MAX_OPEN_FILES];
 int unused_fd = MAX_OPEN_FILES;
 int flag = 0;
@@ -261,6 +271,24 @@ Link(char *oldname, char *newname){
 
 int
 Unlink(char *pathname){
+	struct my_msg2 *msg = malloc(sizeof(struct my_msg2));
+
+	if (flag == 0) {
+		initialize();
+		flag = 1;
+	}
+
+	msg -> type = UNLINK;
+	msg -> data1 = strlen(pathname);
+	msg -> data2 = current_dir_inode;
+	msg -> ptr = pathname;
+
+	//Send message to kernel
+	int send_message = Send(msg, -FILE_SERVER);
+	if (send_message == -1) {
+		printf("SEND MESSAGE = -1\n");
+		return -1;
+	}
 	return 0;
 }
 
@@ -271,7 +299,28 @@ Symlink(char* oldname, char* newname){
 
 int
 ReadLink(char *pathname, char *buf, int len){
-	return 0;
+	struct my_msg3 *msg = malloc(sizeof(struct my_msg3));
+
+	if (flag == 0) {
+		initialize();
+		flag = 1;
+	}
+
+
+	msg->type = READLINK;
+	msg->len = len;
+	msg->cur_inode = current_dir_inode;
+	msg->data = strlen(pathname);
+	msg->buf = buf
+	msg->ptr = pathname;
+
+	//Send message to kernel
+	int send_message = Send(msg, -FILE_SERVER);
+	if (send_message == -1) {
+		printf("SEND MESSAGE = -1\n");
+		return -1;
+	}
+	return msg->len;
 }
 
 int

@@ -51,6 +51,15 @@ struct my_msg2{
     void *ptr;
 };
 
+struct my_msg3{
+	int type;
+	int len;
+	int cur_inode;
+	int data;
+	char *buf;
+	void *ptr;
+};
+
 struct cache_entry {
 	int num;
 	void *data;
@@ -774,6 +783,7 @@ _Seek() {
 }
 
 
+
 int
 _Link(char *oldname, char *newname, int current_inode) {
 	if (current_inode == 0) {
@@ -841,7 +851,6 @@ _Link(char *oldname, char *newname, int current_inode) {
 
 	old_inode->nlink++;
 	set_dirty(old_inode, 0);
-
 	return 0;
 }
 
@@ -940,8 +949,35 @@ _SymLink(char *oldname, char *newname, int current_inode) {
 }
 
 int
-_ReadLink() {
-	return 0;
+_ReadLink(char *pathname, char *buf, int len, int current_inode, int sender_pid) {
+	if (pathname[0] == '/') {
+         current_inode = ROOTINODE;
+    }
+
+    int symlink_inum = get_inode_num_from_path(pathname, current_inode);
+
+    if (symlink_inum == 0) {
+    	return ERROR;
+    }
+
+   struct inode *symlink_inode = get_inode(symlink_inum);
+   int symlink_blocknum = symlink_inode->direct[0];
+   char *symlink_block = get_block(symlink_blocknum);
+
+   int i;
+   for (i = 0; i < len; i++) {
+   		if (symlink_block[i] == '\0') {
+   			break;
+   		}
+   }
+
+   int check = CopyTo(sender_pid, buf, symlink_block, i);
+   if (check == ERROR) {
+   		return ERROR;
+   }
+
+   return i;
+
 }
 
 int
@@ -1284,7 +1320,20 @@ main(int argc, char **argv) {
 		} else if (msg->type == SYMLINK) {
 			_SymLink();
 		} else if (msg->type == READLINK) {
-			_ReadLink();
+			printf("%s\n", "Received message READLINK");
+			struct my_msg3 *msg3 = (struct my_msg3*)msg;
+			char *pathname = malloc(msg3->data);
+			char *buf = malloc(msg3->len);
+			int len = msg3->len;
+			int dir_inode_num = msg3->cur_inode;
+			CopyFrom(senderid, pathname, msg3->ptr, len);
+			int readlink_count = _ReadLink(pathname, buf, len, dir_inode_num, senderid);
+			struct my_msg3 *msg = malloc(sizeof(struct my_msg3));
+			msg->type = READLINK;
+			msg->len = readlink_count;
+			msg->buf = buf;
+			Reply(msg, senderid);
+
 		} else if (msg->type == MKDIR) {
 			printf("Received message MKDIR\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
