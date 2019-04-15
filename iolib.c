@@ -62,6 +62,8 @@ get_unused_fd(){
 			return i;
 		}
 	}
+	printf("No more unused fds\n");
+	return -1;
 }
 
 int
@@ -74,6 +76,7 @@ Open(char *pathname) {
 	}
 
 	if (unused_fd == 0) {
+		printf("You have already opened the maximum number of files\n" );
 		return -1;
 	}
 
@@ -107,7 +110,7 @@ Open(char *pathname) {
 	//TODO: how do I get the file inode number??
 	int i;
 	for(i = 0; i < MAX_OPEN_FILES; i++) {
-		if (open_files[i].inum != 0 && open_files[i].inum == msg -> data1) {
+		if (open_files[i].inum != 0 && open_files[i].inum == inum) {
 			fd = i;
 			// open_files[i].inum = inum;
 			return fd;
@@ -117,7 +120,8 @@ Open(char *pathname) {
 
 	fd = get_unused_fd();
 
-	open_files[fd].inum = msg -> data1;
+
+	open_files[fd].inum = inum;
 	open_files[fd].position = 0;
 
 	unused_fd--;
@@ -164,7 +168,7 @@ Create(char *pathname) {
 		return -1;
 	}
 
-	open_files[fd].inum = msg -> data1;
+	open_files[fd].inum = inum;
 	open_files[fd].position = 0;
 
 	unused_fd--;
@@ -173,16 +177,81 @@ Create(char *pathname) {
 
 int
 Read(int fd, void *buf, int size) {
-	return 0;
+	int inum = open_files[fd].inum;
+
+	struct my_msg2 *msg = malloc(sizeof(my_msg2));
+	msg->type = READ;
+	msg->data1 = inum;
+	msg->data2 = size;
+	msg->data3 = open_files[fd].position;
+	msg->ptr = buf;
+
+	int send_message = Send(msg, -FILE_SERVER);
+	// printf("RECEIVED REPLY\n");
+	if (send_message == -1) {
+		return -1;
+	}
+
+	int result = msg -> data1;
+
+	if (result == -1) {
+		return -1;
+	}
+
+	open_files[fd].position += result;
+
 }
 
 int Write(int fd, void *buf, int size){
-	return 0;
+	int inum = open_files[fd].inum;
+
+	struct my_msg2 *msg = malloc(sizeof(my_msg2));
+	msg->type = WRITE;
+	msg->data1 = inum;
+	msg->data2 = size;
+	msg->data3 = open_files[fd].position;
+	msg->ptr = buf;
+
+	int send_message = Send(msg, -FILE_SERVER);
+	// printf("RECEIVED REPLY\n");
+	if (send_message == -1) {
+		return -1;
+	}
+
+	int result = msg -> data1;
+
+	if (result == -1) {
+		return -1;
+	}
+
+	open_files[fd].position += result;
 }
 
 int
 Seek(int fd, int offset, int whence){
-	return 0;
+	int position;
+
+	if (whence == SEEK_SET) {
+		position = offset;
+	} else if (whence == SEEK_CUR) {
+		position = open_files[fd].position + offset;
+	} else if (whence == SEEK_END) {
+		struct my_msg2 *msg = malloc(sizeof(struct my_msg2));
+		msg->type = SEEK;
+		msg->data1 = open_files[fd].inum;
+		int send_message = Send(msg, -FILE_SERVER);
+		if (send_message == -1) {
+			return -1;
+		}
+		int size = msg -> data1;
+		position = size + offset;
+	}
+
+	if (position < 0) {
+		printf("Attempted to seek to before beginning of file!\n");
+		return -1;
+	}
+	return position;
 }
 
 int

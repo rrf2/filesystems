@@ -1234,9 +1234,9 @@ main(int argc, char **argv) {
 		} else if (msg->type == READ) {
 			printf("Received message READ\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
-			int inum = msg2->data2;
-			int size = msg2->data3;
-			int offset = msg2->data4;
+			int inum = msg2->data1;
+			int size = msg2->data2;
+			int offset = msg2->data3;
 			char *readbuf = malloc(size);
 			int result = _Read(int inum, void *readbuf, int offset, int size);
 			CopyTo(senderid, readbuf, msg2->ptr, size);
@@ -1247,9 +1247,9 @@ main(int argc, char **argv) {
 		} else if (msg->type == WRITE) {
 			printf("Received message WRITE\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
-			int inum = msg2->data2;
-			int size = msg2->data3;
-			int offset = msg2->data4;
+			int inum = msg2->data1;
+			int size = msg2->data2;
+			int offset = msg2->data3;
 			char *writebuf = malloc(size);
 			CopyFrom(senderid, writebuf, msg2->ptr, size);
 			int result = _Write(int inum, void *writebuf, int offset, int size);
@@ -1258,7 +1258,14 @@ main(int argc, char **argv) {
 			printf("Replying with result: %d\n", result);
 			Reply(msg, senderid);
 		} else if (msg->type == SEEK) {
-			_Seek();
+			printf("Received message WRITE\n");
+			struct my_msg2 *msg2 = (struct my_msg2*)msg;
+			int inum = msg2->data1;
+			int size = get_inode(inum)->size;
+			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
+			msg->data1 = size;
+			printf("Replying with result: %d\n", result);
+			Reply(msg, senderid);
 		} else if (msg->type == LINK) {
 			_Link();
 		} else if (msg->type == UNLINK) {
