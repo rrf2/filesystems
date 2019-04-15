@@ -549,6 +549,27 @@ add_dir_entry(int dir_inode_num, struct dir_entry *new_entry) {
 	return;
 }
 
+
+void
+remove_dir_entry(int dir_inode_num, int rm_inum) {
+	struct inode *dirnode = get_inode(dir_inode_num);
+	char *dir_entries = get_dir_entries(dir_inode_num);
+	struct dir_entry *empty_dir_entry = malloc(sizeof(struct dir_entry));
+	empty_dir_entry->inum = 0;
+	int offset;
+	for (offset=0; offset < dirnode->size; offset += sizeof(struct dir_entry)) {
+		struct dir_entry *entry = (struct dir_entry*)&dir_entries[offset];
+		int inum = entry->inum;
+		if (inum == rm_inum) {
+			write_data_to_inode(empty_dir_entry, dir_inode_num, offset, sizeof(struct dir_entry));
+			return;
+		}
+	}
+	printf("Inode to remove: %d does not exist in directory: %d\n", rm_inum, dir_inode_num);
+	return;
+}
+
+
 int
 get_inode_in_dir(char *name, int dir_inode_num, int length) {
 	printf("GETTING INODE IN DIR\n");
@@ -715,7 +736,16 @@ _Seek() {
 
 
 int
-_Link() {
+_Link(char *oldname, char *newname, int current_inode) {
+	old_inode_num = get_inode_num_from_path(oldname);
+	new_inode_num = get_inode_num_from_path(newname);
+	old_inode = get_inode(old_inode_num);
+	if (old_inode->type == INODE_DIRECTORY) {
+		printf("You cannot link to a directory!\n");
+		return ERROR;
+	}
+	// new_inode = get_inode(new_inode_num);
+
 	return 0;
 }
 
@@ -834,7 +864,73 @@ _MkDir(char *pathname, int current_inode) {
 
 int
 _RmDir() {
+	if (current_inode == 0) {
+		return ERROR;
+	}
+	if (pathname[0] == '/') {
+         current_inode = ROOTINODE;
+    }
+    if (pathname[strlen(pathname) - 1] == '/') {
+    	printf("Cannot remove . directory\n");
+    	return -1;
+    }
+    if (pathname[strlen(pathname) - 1] == '.') {
+    	printf("Cannot remove . or .. directory\n");
+    	return -1;
+    }
+
+    char *filename;
+    char *dirname;
+
+    if (strchr(pathname, '/') == NULL) {
+    	filename = pathname;
+    	dirname = "";
+    } else {
+    	filename = strrchr(pathname, '/') + 1;
+	    printf("%d\n", &filename - &pathname + 1);
+	    dirname = malloc(&filename - &pathname + 1);
+	    memcpy(dirname, pathname, &filename - &pathname);
+	    dirname[filename-pathname] = '\0';
+    }
+
+    printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
+    printf("Filename: %s, filenamelen: %d\n", filename, strlen(filename));
+
+    int upper_directory_inum = get_inode_num_from_path(dirname, current_inode);
+	printf("Upper directory inum: %d\n", upper_directory_inum);
+	char *upper_dir_entries = get_dir_entries(directory_inum);
+
+	int rm_directory_inum = get_inode_in_dir(filename, upper_directory_inum, strlen(filename));
+	if (rm_directory_inum == -1) {
+		print("Directory does not exist\n");
+		return ERROR;
+	}
+	rm_dir_inode = get_inode(rm_directory_inum);
+	rm_dir_entries = get_dir_entries(rm_directory_inum);
+
+
+	int offset;
+	for (offset=0; offset < rm_dir_inode->size; offset += sizeof(struct dir_entry)) {
+		struct dir_entry *entry = (struct dir_entry*)&rm_dir_entries[offset];
+		int inum = entry->inum;
+		if (inum != 0) {
+			printf("Directory %d is not empty and cannot be removed (still has inode %d)!\n", rm_directory_inum, inum);
+			return ERROR;
+		}
+	}
+
+	remove_dir_entry(upper_directory_inum, rm_directory_inum);
+	rm_dir_inode->type = INODE_FREE;
+	rm_dir_inode->size = 0;
+	rm_dir_inode->nlink = 0;
+	int i;
+	for (i=0; i<NUM_DIRECT;i++) {
+		blockbitmap[rm_dir_inode->direct[i]] = 0;
+		rm_dir_inode->direct[i] = 0
+	}
+	//TODO: FREE INDIRECT blocks
 	return 0;
+
 }
 
 int
