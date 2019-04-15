@@ -631,11 +631,8 @@ int _Create(char *pathname, int current_inode) {
          current_inode = ROOTINODE;
     }
     if (pathname[strlen(pathname) - 1] == '/') {
-    	char *newpath = malloc(strlen(pathname) + 2);
-    	memcpy(newpath, pathname, strlen(pathname));
-    	newpath[strlen(pathname)] = '.';
-    	newpath[strlen(pathname) + 1] = '\0';
-    	pathname = newpath;
+    	printf("Cannot Create . file\n");
+    	return ERROR;
     }
 
     char *filename;
@@ -738,13 +735,53 @@ _Seek() {
 int
 _Link(char *oldname, char *newname, int current_inode) {
 	old_inode_num = get_inode_num_from_path(oldname);
-	new_inode_num = get_inode_num_from_path(newname);
 	old_inode = get_inode(old_inode_num);
 	if (old_inode->type == INODE_DIRECTORY) {
 		printf("You cannot link to a directory!\n");
 		return ERROR;
 	}
-	// new_inode = get_inode(new_inode_num);
+
+	if (current_inode == 0) {
+		return ERROR;
+	}
+	if (pathname[0] == '/') {
+         current_inode = ROOTINODE;
+    }
+    if (pathname[strlen(pathname) - 1] == '/') {
+    	printf("Cannot Create . file\n");
+    	return ERROR;
+    }
+
+    char *filename;
+    char *dirname;
+
+    if (strchr(pathname, '/') == NULL) {
+    	filename = pathname;
+    	dirname = "";
+    } else {
+    	filename = strrchr(pathname, '/') + 1;
+	    printf("%d\n", &filename - &pathname + 1);
+	    dirname = malloc(&filename - &pathname + 1);
+	    memcpy(dirname, pathname, &filename - &pathname);
+	    dirname[filename-pathname] = '\0';
+    }
+
+    printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
+    printf("Filename: %s, filenamelen: %d\n", filename, strlen(filename));
+
+    struct dir_entry *new_dir_entry = malloc(sizeof(struct dir_entry));
+    new_dir_entry->inum = old_inode_num;
+    int i;
+	for (i=0; i<strlen(filename); i++) {
+    	new_dir_entry->name[i] = filename[i];
+    }
+    if (strlen(filename) < DIRNAMELEN){
+    	new_dir_entry->name[strlen(filename)] = (char)'\0';
+    }
+    int dir_inum = get_inode_num_from_path(dirname);
+    add_dir_entry(dir_inum, new_dir_entry);
+
+	old_inode->nlink++;
 
 	return 0;
 }
@@ -758,7 +795,6 @@ int
 _SymLink() {
 	return 0;
 }
-
 
 int
 _ReadLink() {
@@ -777,14 +813,6 @@ _MkDir(char *pathname, int current_inode) {
     	newpath[strlen(pathname) + 1] = '\0';
     	pathname = newpath;
     }
-
-    // char *filename = strrchr(pathname, '/') + 1;
-    // char *dirname = malloc(filename - pathname + 1);
-    // memcpy(dirname, pathname, filename - pathname);
-    // dirname[filename-pathname] = '\0';
-    // printf("Dirname: %s, dirnamelen: %d\n", dirname, strlen(dirname));
-    // printf("Filename: %s, filenamelen: %d\n", filename, strlen(filename));
-
 
     char *filename;
     char *dirname;
