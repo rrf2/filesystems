@@ -803,9 +803,86 @@ _Link(char *oldname, char *newname, int current_inode) {
 }
 
 int
-_UnLink() {
+_UnLink(char *pathname, int current_inode) {
+	if (current_inode == 0) {
+		return ERROR;
+	}
+	if (pathname[0] == '/') {
+         current_inode = ROOTINODE;
+    }
+    if (pathname[strlen(pathname) - 1] == '/') {
+    	char *newpath = malloc(strlen(pathname) + 2);
+    	memcpy(newpath, pathname, strlen(pathname));
+    	newpath[strlen(pathname)] = '.';
+    	newpath[strlen(pathname) + 1] = '\0';
+    	pathname = newpath;
+    }
+
+    char *filename;
+    char *dirname;
+
+    if (strchr(pathname, '/') == NULL) {
+    	filename = pathname;
+    	dirname = "";
+    } else {
+    	filename = strrchr(pathname, '/') + 1;
+	    printf("%d\n", &filename - &pathname + 1);
+	    dirname = malloc(&filename - &pathname + 1);
+	    memcpy(dirname, pathname, &filename - &pathname);
+	    dirname[filename-pathname] = '\0';
+    }
+
+    int directory_inum = get_inode_num_from_path(dirname, current_inode);
+    struct node *directory_inode = get_inode(directory_inum);
+    if (directory_inum == 0) {
+    	return ERROR;
+    }
+	printf("Directory inum: %d\n", directory_inum);
+	char *dir_entries = get_dir_entries(directory_inum);
+
+	if (dir_entries == NULL) {
+		return -1;
+	}
+
+	int unlinking_inum = get_inode_in_dir(filename, directory_inum, strlen(filename));
+
+	struct inode *unlinking_inode = get_inode(unlinking_inum);
+	
+	if (unlinking_inode->nlink > 1) {
+		//remove from containing directory
+		// dir_entries->inum = 0;
+		// memset(dir_entries->name,'\0',DIRNAMELEN);
+		// directory_inode->size -= sizeof(dir_entry);
+		// set_dirty(directory_inum, 0);
+
+		remove_dir_entry(directory_inum, unlinking_inum);
+
+		//changing the inode
+		unlinking_inode->nlink--;
+		set_dirty(unlinking_inum, 0);
+	}
+
+	else if (unlinking_inode->nlink == 1){
+		// dir_entries->inum = 0;
+		// memset(dir_entries->name,'\0',DIRNAMELEN);
+		// directory_inode->size -= sizeof(dir_entry);
+		// set_dirty(directory_inum, 0);
+
+		remove_dir_entry(directory_inum, unlinking_inum);
+
+		unlinking_inode->type = INODE_FREE;
+		unlinking_inode->nlink = 0;
+		set_dirty(unlinking_inum,0);
+	}
+
+	else {
+		return ERROR;
+	}
+
 	return 0;
+
 }
+
 
 int
 _SymLink(char *oldname, char *newname, int current_inode) {
@@ -1132,7 +1209,18 @@ main(int argc, char **argv) {
 		} else if (msg->type == LINK) {
 			_Link();
 		} else if (msg->type == UNLINK) {
-			_UnLink();
+			printf("Received message UNLINK\n");
+			struct my_msg2 *msg2 = (struct my_msg2*)msg;
+			char *pathname = malloc(msg2->data2);
+			int len = msg2->data1;
+			int dir_inode_num = msg2->data2;
+			CopyFrom(senderid, pathname, msg2->ptr, len);
+			printf("Pathname: %s\n", pathname);
+			int inum = _Unlink(pathname, dir_inode_num);
+			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
+			msg->data1 = inum;
+			printf("Replying with inum: %d\n", inum);
+			Reply(msg, senderid);
 		} else if (msg->type == SYMLINK) {
 			_SymLink();
 		} else if (msg->type == READLINK) {
