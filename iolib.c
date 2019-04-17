@@ -320,7 +320,10 @@ Unlink(char *pathname){
 		printf("SEND MESSAGE = -1\n");
 		return -1;
 	}
-	return 0;
+
+	int result = msg->data1;
+
+	return result;
 }
 
 int
