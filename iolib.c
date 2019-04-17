@@ -324,7 +324,7 @@ Unlink(char *pathname){
 }
 
 int
-Symlink(char* oldname, char* newname){
+SymLink(char* oldname, char* newname){
 	struct my_msg4 *msg = malloc(sizeof(struct my_msg4));
 
 	if (flag == 0) {

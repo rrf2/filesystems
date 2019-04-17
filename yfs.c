@@ -764,10 +764,15 @@ _Open(char *pathname, int current_inode) {
     	dirname = "";
     } else {
     	filename = strrchr(pathname, '/') + 1;
-	    printf("%ld\n", &filename - &pathname + 1);
-	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname + 1);
-	    dirname[filename-pathname] = '\0';
+
+    	int dirnamesize = strlen(pathname);
+    	while (pathname[dirnamesize - 1] != '/') {
+    		dirnamesize --;
+    	}
+
+	    dirname = malloc(dirnamesize);
+	    memcpy(dirname, pathname, dirnamesize - 1);
+	    dirname[dirnamesize - 1] = '\0';
     }
 
 
@@ -801,9 +806,6 @@ int _Create(char *pathname, int current_inode) {
 
     char *filename;
     char *dirname;
-
-    ////////
-    // printf("Pathname: %s\n", pathname);
 
     if (strchr(pathname, '/') == NULL) {
     	filename = pathname;
@@ -1007,10 +1009,15 @@ _UnLink(char *pathname, int current_inode) {
     	dirname = "";
     } else {
     	filename = strrchr(pathname, '/') + 1;
-	    printf("%ld\n", &filename - &pathname + 1);
-	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname + 1);
-	    dirname[filename-pathname] = '\0';
+
+    	int dirnamesize = strlen(pathname);
+    	while (pathname[dirnamesize - 1] != '/') {
+    		dirnamesize --;
+    	}
+
+	    dirname = malloc(dirnamesize);
+	    memcpy(dirname, pathname, dirnamesize - 1);
+	    dirname[dirnamesize - 1] = '\0';
     }
 
     int directory_inum = get_inode_num_from_path(dirname, current_inode);
@@ -1048,6 +1055,7 @@ _UnLink(char *pathname, int current_inode) {
 		// memset(dir_entries->name,'\0',DIRNAMELEN);
 		// directory_inode->size -= sizeof(dir_entry);
 		// set_dirty(directory_inum, 0);
+		printf("nlink zero! deleting file\n");
 
 		remove_dir_entry(directory_inum, unlinking_inum);
 		free_inode_and_blocks(unlinking_inum);
@@ -1130,10 +1138,15 @@ _MkDir(char *pathname, int current_inode) {
     	dirname = "";
     } else {
     	filename = strrchr(pathname, '/') + 1;
-	    printf("%ld\n", &filename - &pathname + 1);
-	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname + 1);
-	    dirname[filename-pathname] = '\0';
+
+    	int dirnamesize = strlen(pathname);
+    	while (pathname[dirnamesize - 1] != '/') {
+    		dirnamesize --;
+    	}
+
+	    dirname = malloc(dirnamesize);
+	    memcpy(dirname, pathname, dirnamesize - 1);
+	    dirname[dirnamesize - 1] = '\0';
     }
 
     printf("Dirname: %s, dirnamelen: %d\n", dirname, (int)strlen(dirname));
@@ -1223,10 +1236,15 @@ _RmDir(char *pathname, int current_inode) {
     	dirname = "";
     } else {
     	filename = strrchr(pathname, '/') + 1;
-	    printf("%ld\n", &filename - &pathname + 1);
-	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname + 1);
-	    dirname[filename-pathname] = '\0';
+
+    	int dirnamesize = strlen(pathname);
+    	while (pathname[dirnamesize - 1] != '/') {
+    		dirnamesize --;
+    	}
+
+	    dirname = malloc(dirnamesize);
+	    memcpy(dirname, pathname, dirnamesize - 1);
+	    dirname[dirnamesize - 1] = '\0';
     }
 
     printf("Dirname: %s, dirnamelen: %d\n", dirname, (int)strlen(dirname));
