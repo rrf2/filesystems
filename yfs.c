@@ -262,7 +262,32 @@ remove_lru_block() {
 			elem = elem->next;
 		}
 	}
-	return lru_num;
+	// return lru_num
+
+	WriteSector(lru_num, get_block(lru_num));
+
+
+	if (elem == NULL) {
+		printf("Error in remove_lru_block 1\n");
+		return -1;
+	} else if (elem->entry->num == lru_num) {
+		block_hashtable[num % BLOCK_HASHTABLE_SIZE] = NULL;
+	} else {
+		struct list_elem *next_elem = elem->next;
+		while (next_elem != NULL) {
+			struct cache_entry *entry = next_elem->entry;
+			if (entry->num == num) {
+				elem->next = next_elem->next;
+				return;
+			}
+			elem = next_elem;
+			next_elem = next_elem->next;
+		}
+		printf("Error in remove_lru_block 2\n")
+		return -1;
+	}
+
+
 }
 
 
@@ -282,7 +307,36 @@ remove_lru_inode() {
 			elem = elem->next;
 		}
 	}
-	return lru_num;
+
+	int blocknum = lru_num * INODESIZE / SECTORSIZE + 1;
+	int offset = (lru_num * INODESIZE) % SECTORSIZE;
+	struct cache_entry *block_entry = get_cached_elem(blocknum, 1);
+	char *block = block_entry->data;
+	memcpy(block + offset, get_inode(lru_num), INODESIZE);
+	set_dirty(blocknum, 1);
+
+	struct list_elem *elem = inode_hashtable[num % INODE_HASHTABLE_SIZE];
+
+	if (elem == NULL) {
+		printf("Error in remove_lru_inode 1\n");
+		return -1;
+	} else if (elem->entry->num == lru_num) {
+		inode_hashtable[num % INODE_HASHTABLE_SIZE] = NULL;
+	} else {
+		struct list_elem *next_elem = elem->next;
+		while (next_elem != NULL) {
+			struct cache_entry *entry = next_elem->entry;
+			if (entry->num == num) {
+				elem->next = next_elem->next;
+				return lru_num;
+			}
+			elem = next_elem;
+			next_elem = next_elem->next;
+		}
+		printf("Error in remove_lru_inode 2\n")
+		return -1;
+	}
+
 }
 
 
@@ -428,10 +482,24 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 	struct inode *node = get_inode(inodenum);
 	int size_copied = 0;
 
+	if (offset + size > node->size)
+		size = node->size - offset;
+
 	//FIND FIRST BLOCK TO USE and OFFSET
+	int indirect_blocks[SECTORSIZE / sizeof(int)] = get_block(node->indirect);
 	int num_direct_block = offset / SECTORSIZE;
+	// if (node->size > SECTORSIZE * NUM_DIRECT)
+	// 	int indirect_blocks[SECTORSIZE / sizeof(int)] = ;
 	offset = offset % SECTORSIZE;
-	int blocknum = node->direct[num_direct_block];
+	if (num_direct_block < NUM_DIRECT) {
+
+	}
+	int blocknum;
+	if (num_direct_block < NUM_DIRECT)
+		blocknum = node->direct[num_direct_block];
+	else
+		blocknum = indirect_blocks[num_direct_block - NUM_DIRECT];
+
 	char *block = get_block(blocknum);
 
 	// COPY FROM FIRST BLOCK
@@ -454,9 +522,12 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 	}
 
 	// COPY FROM FULL BLOCKS
-	while(size - size_copied >= SECTORSIZE && num_direct_block < NUM_DIRECT) {
+	while(size - size_copied >= SECTORSIZE) {
 		// copy the whole block
-		blocknum = node->direct[num_direct_block];
+		if (num_direct_block < NUM_DIRECT)
+			blocknum = node->direct[num_direct_block];
+		else
+			blocknum = indirect_blocks[num_direct_block - NUM_DIRECT];
 		if (blocknum == 0)
 			memset(buf + size_copied, '\0', SECTORSIZE);
 		else {
@@ -467,28 +538,23 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 		num_direct_block ++;
 	}
 
-	// COPY FROM LAST BLOCK / INDIRECT
-	if (num_direct_block != NUM_DIRECT) {
-		// COPY FROM LAST BLOCK
+	// // COPY FROM LAST BLOCK
+	// if (num_direct_block != NUM_DIRECT) {
+	// 	// COPY FROM LAST BLOCK
+
+	if (num_direct_block < NUM_DIRECT)
 		blocknum = node->direct[num_direct_block];
-		if (blocknum == 0) {
-			memset(buf + size_copied, '\0', size - size_copied);
-		} else {
-			block = get_block(blocknum);
-			memcpy(buf + size_copied, block, size - size_copied);
-		}
-		return size;
-
-
-
+	else
+		blocknum = indirect_blocks[num_direct_block - NUM_DIRECT];
+	if (blocknum == 0) {
+		memset(buf + size_copied, '\0', size - size_copied);
 	} else {
-		// COPY FROM INDIRECT
-		printf("%s\n", "ON INDIRECT BLOCKS");
-		// TODO - DO THIS
+		block = get_block(blocknum);
+		memcpy(buf + size_copied, block, size - size_copied);
 	}
-	return ERROR;
-	// check if on indirect or on last block
+	return size;
 }
+
 
 int
 write_data_to_inode(void *buf, int inodenum, int offset, int size) {
@@ -500,12 +566,20 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 	int size_written = 0;
 
 	//FIND FIRST BLOCK TO USE and OFFSET
+	int indirect_blocks[SECTORSIZE / sizeof(int)] = get_block(node->indirect);
 	int num_direct_block = offset / SECTORSIZE;
 	offset = offset % SECTORSIZE;
-	int blocknum = node->direct[num_direct_block];
+
+	if (num_direct_block < NUM_DIRECT)
+		blocknum = node->direct[num_direct_block];
+	else
+		blocknum = indirect_blocks[num_direct_block - NUM_DIRECT];
 	if (blocknum == 0) {
 		blocknum = get_free_block();
-		node->direct[num_direct_block] = blocknum;
+		if (num_direct_block < NUM_DIRECT)
+			node->direct[num_direct_block] = blocknum;
+		else
+			indirect_blocks[blocknum - NUM_DIRECT]  = get_free_block();
 	}
 	char *block = get_block(blocknum);
 	// COPY FROM FIRST BLOCK
@@ -525,12 +599,18 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 	}
 
 	// COPY FROM FULL BLOCKS
-	while(size - size_written >= SECTORSIZE && num_direct_block < NUM_DIRECT) {
+	while(size - size_written >= SECTORSIZE) {
 		// copy the whole block
-		int blocknum = node->direct[num_direct_block];
+		if (num_direct_block < NUM_DIRECT)
+			blocknum = node->direct[num_direct_block];
+		else
+			blocknum = indirect_blocks[num_direct_block - NUM_DIRECT];
 		if (blocknum == 0) {
 			blocknum = get_free_block();
-			node->direct[num_direct_block] = blocknum;
+			if (num_direct_block < NUM_DIRECT)
+				node->direct[num_direct_block] = blocknum;
+			else
+				indirect_blocks[blocknum - NUM_DIRECT]  = get_free_block();
 		}
 		block = get_block(blocknum);
 		memcpy(block, buf + size_written, SECTORSIZE);
@@ -539,25 +619,25 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 		num_direct_block ++;
 	}
 
-	// COPY FROM LAST BLOCK / INDIRECT
-	if (num_direct_block != NUM_DIRECT) {
-		// COPY FROM LAST BLOCK
-		int blocknum = node->direct[num_direct_block];
-		if (blocknum == 0) {
-			blocknum = get_free_block();
+	// // COPY FROM LAST BLOCK / INDIRECT
+	// if (num_direct_block != NUM_DIRECT) {
+	// 	// COPY FROM LAST BLOCK
+	if (num_direct_block < NUM_DIRECT)
+		blocknum = node->direct[num_direct_block];
+	else
+		blocknum = indirect_blocks[num_direct_block - NUM_DIRECT];
+	if (blocknum == 0) {
+		blocknum = get_free_block();
+		if (num_direct_block < NUM_DIRECT)
 			node->direct[num_direct_block] = blocknum;
-		}
-		block = get_block(blocknum);
-		memcpy(block, buf + size_written, size - size_written);
-		set_dirty(blocknum, 0);
-		return size;
-
-	} else {
-		// COPY FROM INDIRECT
-		printf("%s\n", "ON INDIRECT BLOCKS");
-		// TODO - DO THIS
+		else
+			indirect_blocks[blocknum - NUM_DIRECT]  = get_free_block();
 	}
-	return ERROR;
+	block = get_block(blocknum);
+	memcpy(block, buf + size_written, size - size_written);
+	set_dirty(blocknum, 0);
+	return size;
+
 	// check if on indirect or on last block
 }
 
@@ -1121,9 +1201,16 @@ _RmDir() {
 
 }
 
-int
-_Stat() {
-	return 0;
+struct Stat*
+_Stat(char *pathname, int current_inode_num) {
+	int inum = get_inode_num_from_path(path, current_inode_num);
+	struct inode *node = get_inode(inum);
+	struct Stat *statbuf = malloc(sizeof(struct Stat));
+	statbuf->inum = node->inum;
+	statbuf->type = node->type;
+	statbuf->size = node->size;
+	statbuf->nlink = node->nlink;
+	return statbuf;
 }
 
 
@@ -1352,7 +1439,16 @@ main(int argc, char **argv) {
 			printf("Replying with inum: %d\n", inum);
 			Reply(msg, senderid);
 		} else if (msg->type == STAT) {
-			_Stat();
+			struct my_msg3 *msg = malloc(sizeof(struct my_msg3));
+			int len = msg->len;
+			int cur_inode = msg->cur_inode;
+			int data;
+			char *pathname = malloc(len);
+			CopyFrom(senderid, pathname, msg->buf, len);
+			struct Stat* statbuf = _Stat(pathname, cur_inode);
+			CopyTo(senderid, statbuf, msg->ptr, sizeof(struct Stat));
+			msg->data1 = 0;
+			Reply(msg, senderid);
 		} else if (msg->type == SYNC) {
 			_Sync();
 			msg->data1 = 0;
