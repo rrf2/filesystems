@@ -121,7 +121,7 @@ get_free_block() {
 		i ++;
 	}
 	if (i > num_blocks) {
-		printf("NO MORE FREE BLOCKS!\n");
+		// printf("NO MORE FREE BLOCKS!\n");
 		return -1;
 	} else {
 		blockbitmap[i] = 1;
@@ -139,7 +139,6 @@ set_dirty(int num, int block) {
 		elem = inode_hashtable[num % INODE_HASHTABLE_SIZE];
 
 	if (elem == NULL) {
-		printf("TRIED TO SET ELEMENT DIRTY THAT IS NOT IN CACHE!\n");
 		return;
 	} else {
 		while (elem != NULL) {
@@ -151,7 +150,6 @@ set_dirty(int num, int block) {
 				elem = elem->next;
 			}
 		}
-		printf("TRIED TO SET ELEMENT DIRTY THAT IS NOT IN CACHE!\n");
 		return;
 	}
 }
@@ -236,8 +234,6 @@ insert_elem_in_cache(int num, void *data, int block) {
 	entry->data = data;
 	entry->dirty = 0;
 
-
-
 	struct list_elem *newelem = malloc(sizeof(struct list_elem));
 	newelem->entry = entry;
 	newelem->next = NULL;
@@ -255,14 +251,11 @@ insert_elem_in_cache(int num, void *data, int block) {
 
 	if (elem == NULL) {
 		// No collision
-		// printf("No collision on insert\n");
 		if (block == 1){
 			block_hashtable[num % BLOCK_HASHTABLE_SIZE] = newelem;
-			// printf("Put elem at block_hashtable: %d\n", num % BLOCK_HASHTABLE_SIZE);
 		}
 		else {
 			inode_hashtable[num % INODE_HASHTABLE_SIZE] = newelem;
-			// printf("Put elem at inode_hashtable index: %d\n", num % INODE_HASHTABLE_SIZE);
 		}
 
 	} else {
@@ -277,6 +270,7 @@ insert_elem_in_cache(int num, void *data, int block) {
 
 int
 remove_lru_block() {
+	printf("REMOVING LRU BLOCK\n");
 	int min = num_blocks_cached + 1;
 	int lru_num;
 	int i;
@@ -292,7 +286,7 @@ remove_lru_block() {
 		}
 	}
 	// return lru_num
-
+	printf("LRU BLOCK IS: %d\n", lru_num);
 	WriteSector(lru_num, get_block(lru_num));
 
 
@@ -323,6 +317,7 @@ remove_lru_block() {
 
 int
 remove_lru_inode() {
+	printf("REMOVING LRU INODE\n");
 	int min = num_inodes_cached + 1;
 	int lru_num;
 	int i;
@@ -337,6 +332,8 @@ remove_lru_inode() {
 			elem = elem->next;
 		}
 	}
+
+	printf("LRU INODE IS: %d\n", lru_num);
 
 	int blocknum = lru_num * INODESIZE / SECTORSIZE + 1;
 	int offset = (lru_num * INODESIZE) % SECTORSIZE;
@@ -432,10 +429,7 @@ read_with_offset(int sectornum, void *buf, int offset, int size) {
 
 int
 get_inode_num_from_path(char *pathname, int dir_inode_num, int traverse_symlinks) {
-	// printf("%s\n", pathname);
 	if (strlen(pathname) == 0) {
-		// printf("%s\n", "Pathname has length 0");
-		// return ERROR;
 		return dir_inode_num;
 	}
 
@@ -451,10 +445,6 @@ get_inode_num_from_path(char *pathname, int dir_inode_num, int traverse_symlinks
 
 	int length;
 
-
-	// printf("token: %s\n", token);
-	// struct inode *dirnode = get_inode(dir_inode_num);
-	// printf("dir_inode_num: %d\tdirnode->type: %d\n", dir_inode_num, dirnode->type);
 	int inum = dir_inode_num;
 
 	while (nextslash != NULL) {// && dirnode->type == INODE_DIRECTORY) {
@@ -470,7 +460,6 @@ get_inode_num_from_path(char *pathname, int dir_inode_num, int traverse_symlinks
 		}
 
 		currstr = nextslash + 1;
-
 		nextslash = strchr(currstr, '/');
 
     }
@@ -573,10 +562,6 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 		num_direct_block ++;
 	}
 
-	// // COPY FROM LAST BLOCK
-	// if (num_direct_block != NUM_DIRECT) {
-	// 	// COPY FROM LAST BLOCK
-
 	if (num_direct_block < NUM_DIRECT)
 		blocknum = node->direct[num_direct_block];
 	else
@@ -620,9 +605,7 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 	char *block = get_block(blocknum);
 	// COPY FROM FIRST BLOCK
 	if (offset + size <= SECTORSIZE) {
-		// printf("here1\n");
 		// just copy part of the first block starting at offset
-		// printf("blocknum: %d, block addr: %x, offset: %d, buf addr: %x, size: %d\n", blocknum, block, offset, buf, size);
 		memcpy(block + offset, buf, size);
 		set_dirty(blocknum, 1);
 		return size;
@@ -656,9 +639,6 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 		num_direct_block ++;
 	}
 
-	// // COPY FROM LAST BLOCK / INDIRECT
-	// if (num_direct_block != NUM_DIRECT) {
-	// 	// COPY FROM LAST BLOCK
 	if (num_direct_block < NUM_DIRECT)
 		blocknum = node->direct[num_direct_block];
 	else
