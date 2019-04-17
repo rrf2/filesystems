@@ -413,6 +413,7 @@ read_with_offset(int sectornum, void *buf, int offset, int size) {
 
 int
 get_inode_num_from_path(char *pathname, int dir_inode_num) {
+	printf("%s\n", pathname);
 	if (strlen(pathname) == 0) {
 		// printf("%s\n", "Pathname has length 0");
 		// return ERROR;
@@ -715,7 +716,8 @@ remove_dir_entry(int dir_inode_num, int rm_inum) {
 
 int
 get_inode_in_dir(char *name, int dir_inode_num, int length) {
-	printf("GETTING INODE IN DIR\n");
+	printf("GETTING INODE IN DIR  %s\n", name);
+
 	struct inode *dirnode = get_inode(dir_inode_num);
 	if (dirnode->type != INODE_DIRECTORY) {
 		printf("Dir_inode_num given: %d is not a directory\n", dir_inode_num);
@@ -742,6 +744,9 @@ get_inode_in_dir(char *name, int dir_inode_num, int length) {
 
 int
 _Open(char *pathname, int current_inode) {
+	char *filename;
+    char *dirname;
+
 	printf("Opening in yfs\n");
 	if (pathname[0] == '/') {
          current_inode = ROOTINODE;
@@ -754,8 +759,29 @@ _Open(char *pathname, int current_inode) {
     	pathname = newpath;
     }
 
+    if (strchr(pathname, '/') == NULL) {
+    	filename = pathname;
+    	dirname = "";
+    } else {
+    	filename = strrchr(pathname, '/') + 1;
+	    printf("%ld\n", &filename - &pathname + 1);
+	    dirname = malloc(&filename - &pathname + 1);
+	    memcpy(dirname, pathname, &filename - &pathname);
+	    dirname[filename-pathname] = '\0';
+    }
+
+
+    int directory_inum = get_inode_num_from_path(dirname, current_inode);
+	printf("Directory inum: %d\n", directory_inum);
+	char *dir_entries = get_dir_entries(directory_inum);
+
+	if (dir_entries == NULL) {
+		return -1;
+	}
+
     printf("Current inode: %d\tPathname: %s\n", current_inode, pathname);
-    int inum = get_inode_num_from_path(pathname, current_inode);
+    // int inum = get_inode_num_from_path(pathname, current_inode);
+    int inum = get_inode_in_dir(filename, directory_inum, strlen(filename));
     printf("Done opening in yfs with inum: %d\n", inum);
     return inum;
 }
@@ -798,12 +824,18 @@ int _Create(char *pathname, int current_inode) {
 	printf("Creating file: %s in directory %s from pathname %s\n", filename, dirname, pathname);
 
 	int directory_inum = get_inode_num_from_path(dirname, current_inode);
+	struct inode *dir_inode = get_inode(directory_inum);
+	if (dir_inode->type != INODE_DIRECTORY) {
+		return ERROR;
+	}
 	printf("Directory inum: %d\n", directory_inum);
 	char *dir_entries = get_dir_entries(directory_inum);
 
 	if (dir_entries == NULL) {
 		return -1;
 	}
+
+
 
 
 	int current_inode_num = get_inode_in_dir(filename, directory_inum, strlen(filename));
