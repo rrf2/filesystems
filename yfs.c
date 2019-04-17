@@ -1577,9 +1577,10 @@ main(int argc, char **argv) {
 			int dir_inode_num = msg4->cur_inode;
 			CopyFrom(senderid, oldname, msg4->oldname, len_oldname + 1);
 			CopyFrom(senderid, newname, msg4->newname, len_newname + 1);
-			_SymLink(oldname, newname, dir_inode_num);
+			int status = _SymLink(oldname, newname, dir_inode_num);
 			struct my_msg4 *msg = malloc(sizeof(struct my_msg4));
 			msg->type = SYMLINK;
+			msg->len_oldname = status;
 			Reply(msg, senderid);
 		} else if (msg->type == READLINK) {
 			printf("%s\n", "Received message READLINK");

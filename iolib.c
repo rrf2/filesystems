@@ -352,7 +352,10 @@ SymLink(char* oldname, char* newname){
 		printf("SEND MESSAGE = -1\n");
 		return -1;
 	}
-	return 0;
+
+	int status = msg->len_oldname;
+
+	return status;
 }
 
 int
