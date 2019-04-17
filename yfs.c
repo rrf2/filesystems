@@ -432,7 +432,7 @@ read_with_offset(int sectornum, void *buf, int offset, int size) {
 
 int
 get_inode_num_from_path(char *pathname, int dir_inode_num) {
-	printf("%s\n", pathname);
+	// printf("%s\n", pathname);
 	if (strlen(pathname) == 0) {
 		// printf("%s\n", "Pathname has length 0");
 		// return ERROR;
@@ -743,12 +743,6 @@ get_inode_in_dir(char *name, int dir_inode_num, int length) {
 	// printf("GETTING INODE IN DIR  %s\n", name);
 
 	struct inode *dirnode = get_inode(dir_inode_num);
-	// if (get_inode(inum)->type == INODE_SYMLINK) {
- //    		symlink_count++;
- //    		int symlink_inum = get_linked_inode(inum, dir_inode_num);
- //    		symlink_count = 0;
- //    		return symlink_inum
- //    }
 	if (dirnode->type != INODE_DIRECTORY) {
 		printf("Dir_inode_num given: %d is not a directory\n", dir_inode_num);
 		return -2;
@@ -762,8 +756,9 @@ get_inode_in_dir(char *name, int dir_inode_num, int length) {
 		int inum = entry->inum;
 
 		if (strncmp(name, entry->name, length) == 0 && inum != 0) {
-
+			printf("Found file in dir: inum: %d, name: %s\n", inum, name);
 			if (get_inode(inum)->type == INODE_SYMLINK) {
+				printf("Found file is symlink\n");
 				// symlink_count++;
 				int symlink_num = get_linked_inode(inum, dir_inode_num);
 				// symlink_count = 0;
@@ -781,6 +776,7 @@ get_inode_in_dir(char *name, int dir_inode_num, int length) {
 
 int
 get_linked_inode(int symlink_inum, int directory_inum) {
+	// printf("get linked inode: symlink_inum: %d, directory_inum: %d\n", symlink_inum, directory_inum);
 	symlink_count++;
 	if (get_inode(symlink_inum)->type != INODE_SYMLINK) {
 		return ERROR;
@@ -801,8 +797,10 @@ get_linked_inode(int symlink_inum, int directory_inum) {
    			break;
    		}
    	}
-   	char *data = malloc(sizeof(symlink_inode->size));
+   	char *data = malloc(sizeof(symlink_inode->size) + 1);
    	memcpy(data, symlink_block, symlink_inode->size);
+   	data[symlink_inode->size] = '\0';
+   	// printf("data: %s\n", data);
    	return get_inode_num_from_path(data, directory_inum);
 }
 
@@ -850,7 +848,9 @@ _Open(char *pathname, int current_inode) {
 
     // printf("Current inode: %d\tPathname: %s\n", current_inode, pathname);
     // int inum = get_inode_num_from_path(pathname, current_inode);
+    printf("get_inode_in_dir - filename: %s, directory_inum: %d, strlen(filename): %d\n", filename, directory_inum, strlen(filename));
     int inum = get_inode_in_dir(filename, directory_inum, strlen(filename));
+    printf("inum: %d\n", inum);
     // printf("Done opening in yfs with inum: %d\n", inum);
     return inum;
 }
@@ -898,7 +898,7 @@ int _Create(char *pathname, int current_inode) {
 		printf("Filename too long!");
 		return -1;
 	}
-	printf("Creating file: %s in directory %s from pathname %s\n", filename, dirname, pathname);
+	// printf("Creating file: %s in directory %s from pathname %s\n", filename, dirname, pathname);
     symlink_count = 0;
 	int directory_inum = get_inode_num_from_path(dirname, current_inode);
 	struct inode *dir_inode = get_inode(directory_inum);
@@ -996,7 +996,7 @@ _Link(char *oldname, char *newname, int current_inode) {
     	oldname = newpath;
     }
 
-    printf("Current inode: %d\tOldname: %s\n", current_inode, oldname);
+    // printf("Current inode: %d\tOldname: %s\n", current_inode, oldname);
     symlink_count = 0;
 	int old_inode_num = get_inode_num_from_path(oldname, current_inode);
 	if (old_inode_num == -1) {
@@ -1026,7 +1026,7 @@ _Link(char *oldname, char *newname, int current_inode) {
     	dirname = "";
     } else {
     	filename = strrchr(newname, '/') + 1;
-	    printf("%ld\n", &filename - &newname + 1);
+	    // printf("%ld\n", &filename - &newname + 1);
 	    dirname = malloc(&filename - &newname + 1);
 	    memcpy(dirname, newname, &filename - &newname);
 	    dirname[filename-newname] = '\0';
@@ -1095,7 +1095,7 @@ _UnLink(char *pathname, int current_inode) {
     if (directory_inum == 0) {
     	return ERROR;
     }
-	printf("Directory inum: %d\n", directory_inum);
+	// printf("Directory inum: %d\n", directory_inum);
 	char *dir_entries = get_dir_entries(directory_inum);
 
 	if (dir_entries == NULL) {
@@ -1146,30 +1146,42 @@ _SymLink(char *oldname, char *newname, int current_inode) {
 		return ERROR;
 	}
 
+	if (get_inode_num_from_path(oldname, current_inode) == -1) {
+		printf("File to link to does not exist\n");
+		return ERROR;
+	}
+
 	int new_inum = _Create(newname, current_inode);
 	if (new_inum == -1) {
 		return ERROR;
 	}
+	struct inode *linknode = get_inode(new_inum);
 	write_data_to_inode(oldname, new_inum, 0, strlen(oldname));
+	linknode->type = INODE_SYMLINK;
+	set_dirty(new_inum, 0);
 	return 0;
 
 }
 
 int
 _ReadLink(char *pathname, char *buf, int len, int current_inode, int sender_pid) {
+	// printf("Readlink - pathname: %s, len: %d, current_inode: %d\n", pathname, len, current_inode);
 	if (pathname[0] == '/') {
          current_inode = ROOTINODE;
     }
     symlink_count = 0;
     int symlink_inum = get_inode_num_from_path(pathname, current_inode);
+    // printf("symlink inum: %d\n", symlink_inum);
 
     if (symlink_inum == 0) {
     	return ERROR;
-    }
+	}
 
-   struct inode *symlink_inode = get_inode(symlink_inum);
-   int symlink_blocknum = symlink_inode->direct[0];
-   char *symlink_block = get_block(symlink_blocknum);
+
+
+   	struct inode *symlink_inode = get_inode(symlink_inum);
+   	int symlink_blocknum = symlink_inode->direct[0];
+   	char *symlink_block = get_block(symlink_blocknum);
 
    int i;
    for (i = 0; i < len; i++) {
@@ -1178,10 +1190,15 @@ _ReadLink(char *pathname, char *buf, int len, int current_inode, int sender_pid)
    		}
    }
 
-   int check = CopyTo(sender_pid, buf, symlink_block, i);
-   if (check == ERROR) {
-   		return ERROR;
-   }
+   // printf("i: %d\n", i);
+
+   memcpy(buf, symlink_block, i);
+
+   // int check = CopyTo(sender_pid, buf, symlink_block, i);
+   // if (check == ERROR) {
+   // 		printf("HERE2\n");
+   // 		return ERROR;
+   // }
 
    return i;
 
@@ -1362,7 +1379,6 @@ struct Stat*
 _Stat(char *pathname, int current_inode_num) {
 	symlink_count = 0;
 	int inum = get_inode_num_from_path(pathname, current_inode_num);
-	printf("inum: %d\n", inum);
 	struct inode *node = get_inode(inum);
 	struct Stat *statbuf = malloc(sizeof(struct Stat));
 	statbuf->inum = inum;
@@ -1566,7 +1582,7 @@ main(int argc, char **argv) {
 			int dir_inode_num = msg4->cur_inode;
 			CopyFrom(senderid, oldname, msg4->oldname, len_oldname + 1);
 			CopyFrom(senderid, newname, msg4->newname, len_newname + 1);
-			_Link(oldname, newname, dir_inode_num);
+			_SymLink(oldname, newname, dir_inode_num);
 			struct my_msg4 *msg = malloc(sizeof(struct my_msg4));
 			msg->type = SYMLINK;
 			Reply(msg, senderid);
@@ -1579,11 +1595,13 @@ main(int argc, char **argv) {
 			int buflen = msg3->len;
 			int dir_inode_num = msg3->cur_inode;
 			CopyFrom(senderid, pathname, msg3->ptr, pathnamelen + 1);
+			// printf("pathname: %s\n", pathname);
 			int readlink_count = _ReadLink(pathname, buf, buflen, dir_inode_num, senderid);
+			CopyTo(senderid, msg3->buf, buf, readlink_count);
 			struct my_msg3 *msg = malloc(sizeof(struct my_msg3));
 			msg->type = READLINK;
 			msg->len = readlink_count;
-			msg->buf = buf;
+			// msg->buf = buf;
 			Reply(msg, senderid);
 		} else if (msg->type == MKDIR) {
 			printf("Received message MKDIR\n");

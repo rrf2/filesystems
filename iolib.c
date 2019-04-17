@@ -120,7 +120,7 @@ Open(char *pathname) {
 	}
 
 	int inum = msg->data1;
-	printf("Got inum: %d back from yfs\n", inum);
+	// printf("Got inum: %d back from yfs\n", inum);
 
 	if (inum == -1) {
 		printf("File not found\n");
@@ -339,7 +339,7 @@ SymLink(char* oldname, char* newname){
 		flag = 1;
 	}
 
-	msg -> type = LINK;
+	msg -> type = SYMLINK;
 	msg -> cur_inode = current_dir_inode;
 	msg -> oldname = oldname;
 	msg -> len_oldname = strlen(oldname);
