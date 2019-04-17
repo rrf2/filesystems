@@ -130,16 +130,16 @@ Open(char *pathname) {
 	int fd;
 
 
-	//if file is already in open_files array, return fd number
-	//TODO: how do I get the file inode number??
-	int i;
-	for(i = 0; i < MAX_OPEN_FILES; i++) {
-		if (open_files[i].inum != 0 && open_files[i].inum == inum) {
-			fd = i;
-			// open_files[i].inum = inum;
-			return fd;
-		}
-	}
+	// //if file is already in open_files array, return fd number
+	// //TODO: how do I get the file inode number??
+	// int i;
+	// for(i = 0; i < MAX_OPEN_FILES; i++) {
+	// 	if (open_files[i].inum != 0 && open_files[i].inum == inum) {
+	// 		fd = i;
+	// 		// open_files[i].inum = inum;
+	// 		return fd;
+	// 	}
+	// }
 
 
 	fd = get_unused_fd();
