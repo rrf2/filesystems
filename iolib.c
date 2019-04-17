@@ -1,5 +1,6 @@
 #include <comp421/filesystem.h>
 #include <comp421/iolib.h>
+#include <stdio.h>
 
 #define OPEN 0
 #define CLOSE 1
@@ -48,7 +49,16 @@ struct my_msg3{
 	int data;
 	char *buf;
 	void *ptr;
-}
+};
+
+struct my_msg4{
+	int type;
+	int len_oldname;
+	int cur_inode;
+	int len_newname;
+	char *oldname;
+	char *newname;
+};
 
 struct file_information open_files[MAX_OPEN_FILES];
 int unused_fd = MAX_OPEN_FILES;
@@ -189,7 +199,7 @@ int
 Read(int fd, void *buf, int size) {
 	int inum = open_files[fd].inum;
 
-	struct my_msg2 *msg = malloc(sizeof(my_msg2));
+	struct my_msg2 *msg = malloc(sizeof(struct my_msg2));
 	msg->type = READ;
 	msg->data1 = inum;
 	msg->data2 = size;
@@ -215,7 +225,7 @@ Read(int fd, void *buf, int size) {
 int Write(int fd, void *buf, int size){
 	int inum = open_files[fd].inum;
 
-	struct my_msg2 *msg = malloc(sizeof(my_msg2));
+	struct my_msg2 *msg = malloc(sizeof(struct my_msg2));
 	msg->type = WRITE;
 	msg->data1 = inum;
 	msg->data2 = size;
@@ -266,6 +276,26 @@ Seek(int fd, int offset, int whence){
 
 int
 Link(char *oldname, char *newname){
+	struct my_msg4 *msg = malloc(sizeof(struct my_msg4));
+
+	if (flag == 0) {
+		initialize();
+		flag = 1;
+	}
+
+	msg -> type = LINK;
+	msg -> cur_inode = current_dir_inode;
+	msg -> oldname = oldname;
+	msg -> len_oldname = strlen(oldname);
+	msg -> newname = newname;
+	msg -> len_newname = strlen(newname);
+
+	//Send message to kernel
+	int send_message = Send(msg, -FILE_SERVER);
+	if (send_message == -1) {
+		printf("SEND MESSAGE = -1\n");
+		return -1;
+	}
 	return 0;
 }
 
@@ -294,6 +324,26 @@ Unlink(char *pathname){
 
 int
 Symlink(char* oldname, char* newname){
+	struct my_msg4 *msg = malloc(sizeof(struct my_msg4));
+
+	if (flag == 0) {
+		initialize();
+		flag = 1;
+	}
+
+	msg -> type = LINK;
+	msg -> cur_inode = current_dir_inode;
+	msg -> oldname = oldname;
+	msg -> len_oldname = strlen(oldname);
+	msg -> newname = newname;
+	msg -> len_newname = strlen(newname);
+
+	//Send message to kernel
+	int send_message = Send(msg, -FILE_SERVER);
+	if (send_message == -1) {
+		printf("SEND MESSAGE = -1\n");
+		return -1;
+	}
 	return 0;
 }
 
@@ -311,7 +361,7 @@ ReadLink(char *pathname, char *buf, int len){
 	msg->len = len;
 	msg->cur_inode = current_dir_inode;
 	msg->data = strlen(pathname);
-	msg->buf = buf
+	msg->buf = buf;
 	msg->ptr = pathname;
 
 	//Send message to kernel
@@ -426,3 +476,4 @@ Shutdown(){
 
 	return 0;
 }
+
