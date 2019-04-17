@@ -528,8 +528,10 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 		if (blocknum == 0) {
 			memset(buf + offset, '\0', size);
 		}
-		else
+		else {
 			memcpy(buf, block + offset, size);
+			// printf("PRINTING BLOCK: %.*s\n", size, block + offset);
+		}
 		return size;
 
 	} else {
@@ -608,6 +610,7 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 	if (offset + size <= SECTORSIZE) {
 		// printf("here1\n");
 		// just copy part of the first block starting at offset
+		// printf("blocknum: %d, block addr: %x, offset: %d, buf addr: %x, size: %d\n", blocknum, block, offset, buf, size);
 		memcpy(block + offset, buf, size);
 		set_dirty(blocknum, 1);
 		return size;
@@ -807,10 +810,15 @@ _Open(char *pathname, int current_inode) {
     	dirname = "";
     } else {
     	filename = strrchr(pathname, '/') + 1;
-	    printf("%ld\n", &filename - &pathname + 1);
-	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname);
-	    dirname[filename-pathname] = '\0';
+
+    	int dirnamesize = strlen(pathname);
+    	while (pathname[dirnamesize - 1] != '/') {
+    		dirnamesize --;
+    	}
+
+	    dirname = malloc(dirnamesize);
+	    memcpy(dirname, pathname, dirnamesize - 1);
+	    dirname[dirnamesize - 1] = '\0';
     }
 
     symlink_count = 0;
@@ -850,11 +858,19 @@ int _Create(char *pathname, int current_inode) {
     	dirname = "";
     } else {
     	filename = strrchr(pathname, '/') + 1;
-	    printf("%ld\n", &filename - &pathname + 1);
-	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname);
-	    dirname[filename-pathname] = '\0';
+
+    	int dirnamesize = strlen(pathname);
+    	while (pathname[dirnamesize - 1] != '/') {
+    		dirnamesize --;
+    	}
+
+    	printf("dirnamesize: %d\n", dirnamesize);
+
+	    dirname = malloc(dirnamesize);
+	    memcpy(dirname, pathname, dirnamesize - 1);
+	    dirname[dirnamesize - 1] = '\0';
     }
+    //////
 
     printf("Dirname: %s, dirnamelen: %d\n", dirname, (int)strlen(dirname));
     printf("Filename: %s, filenamelen: %d\n", filename, (int)strlen(filename));
@@ -1038,10 +1054,15 @@ _UnLink(char *pathname, int current_inode) {
     	dirname = "";
     } else {
     	filename = strrchr(pathname, '/') + 1;
-	    printf("%ld\n", &filename - &pathname + 1);
-	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname);
-	    dirname[filename-pathname] = '\0';
+
+    	int dirnamesize = strlen(pathname);
+    	while (pathname[dirnamesize - 1] != '/') {
+    		dirnamesize --;
+    	}
+
+	    dirname = malloc(dirnamesize);
+	    memcpy(dirname, pathname, dirnamesize - 1);
+	    dirname[dirnamesize - 1] = '\0';
     }
 
 	symlink_count = 0;
@@ -1080,6 +1101,7 @@ _UnLink(char *pathname, int current_inode) {
 		// memset(dir_entries->name,'\0',DIRNAMELEN);
 		// directory_inode->size -= sizeof(dir_entry);
 		// set_dirty(directory_inum, 0);
+		printf("nlink zero! deleting file\n");
 
 		remove_dir_entry(directory_inum, unlinking_inum);
 		free_inode_and_blocks(unlinking_inum);
@@ -1162,10 +1184,15 @@ _MkDir(char *pathname, int current_inode) {
     	dirname = "";
     } else {
     	filename = strrchr(pathname, '/') + 1;
-	    printf("%ld\n", &filename - &pathname + 1);
-	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname);
-	    dirname[filename-pathname] = '\0';
+
+    	int dirnamesize = strlen(pathname);
+    	while (pathname[dirnamesize - 1] != '/') {
+    		dirnamesize --;
+    	}
+
+	    dirname = malloc(dirnamesize);
+	    memcpy(dirname, pathname, dirnamesize - 1);
+	    dirname[dirnamesize - 1] = '\0';
     }
 
     printf("Dirname: %s, dirnamelen: %d\n", dirname, (int)strlen(dirname));
@@ -1256,10 +1283,15 @@ _RmDir(char *pathname, int current_inode) {
     	dirname = "";
     } else {
     	filename = strrchr(pathname, '/') + 1;
-	    printf("%ld\n", &filename - &pathname + 1);
-	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname);
-	    dirname[filename-pathname] = '\0';
+
+    	int dirnamesize = strlen(pathname);
+    	while (pathname[dirnamesize - 1] != '/') {
+    		dirnamesize --;
+    	}
+
+	    dirname = malloc(dirnamesize);
+	    memcpy(dirname, pathname, dirnamesize - 1);
+	    dirname[dirnamesize - 1] = '\0';
     }
 
     printf("Dirname: %s, dirnamelen: %d\n", dirname, (int)strlen(dirname));
@@ -1403,7 +1435,7 @@ main(int argc, char **argv) {
 	struct my_msg1 *msg = malloc(sizeof(struct my_msg1));
 
 	while(1) {
-		printf("Receiving\n");
+		// printf("Receiving\n");
 		int senderid = Receive(msg);
 		if (senderid == 0) {
 			printf("DEADLOCK\n");
@@ -1413,10 +1445,10 @@ main(int argc, char **argv) {
 		if (msg->type == OPEN) {
 			printf("Received message OPEN\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
-			char *pathname = malloc(msg2->data2);
 			int len = msg2->data1;
+			char *pathname = malloc(len + 1);
 			int dir_inode_num = msg2->data2;
-			CopyFrom(senderid, pathname, msg2->ptr, len);
+			CopyFrom(senderid, pathname, msg2->ptr, len + 1);
 			int inum = _Open(pathname, dir_inode_num);
 			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
 			msg->data1 = inum;
@@ -1427,10 +1459,10 @@ main(int argc, char **argv) {
 		} else if (msg->type == CREATE) {
 			printf("Received message CREATE\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
-			char *pathname = malloc(msg2->data2);
 			int len = msg2->data1;
+			char *pathname = malloc(len + 1);
 			int dir_inode_num = msg2->data2;
-			CopyFrom(senderid, pathname, msg2->ptr, len);
+			CopyFrom(senderid, pathname, msg2->ptr, len + 1);
 			printf("Pathname: %s\n", pathname);
 			int inum = _Create(pathname, dir_inode_num);
 			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
@@ -1444,8 +1476,8 @@ main(int argc, char **argv) {
 			int size = msg2->data2;
 			int offset = msg2->data3;
 			char *readbuf = malloc(size);
-			int result = _Read(inum, *readbuf, offset, size);
-			CopyTo(senderid, readbuf, msg2->ptr, size);
+			int result = _Read(inum, readbuf, offset, size);
+			CopyTo(senderid, msg2->ptr, readbuf, size);
 			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
 			msg->data1 = result;
 			printf("Replying with result: %d\n", result);
@@ -1458,7 +1490,7 @@ main(int argc, char **argv) {
 			int offset = msg2->data3;
 			char *writebuf = malloc(size);
 			CopyFrom(senderid, writebuf, msg2->ptr, size);
-			int result = _Write(inum, *writebuf, offset, size);
+			int result = _Write(inum, writebuf, offset, size);
 			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
 			msg->data1 = result;
 			printf("Replying with result: %d\n", result);
@@ -1492,10 +1524,10 @@ main(int argc, char **argv) {
 		} else if (msg->type == UNLINK) {
 			printf("Received message UNLINK\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
-			char *pathname = malloc(msg2->data2);
 			int len = msg2->data1;
+			char *pathname = malloc(len + 1);
 			int dir_inode_num = msg2->data2;
-			CopyFrom(senderid, pathname, msg2->ptr, len);
+			CopyFrom(senderid, pathname, msg2->ptr, len + 1);
 			printf("Pathname: %s\n", pathname);
 			int inum = _UnLink(pathname, dir_inode_num);
 			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
@@ -1506,12 +1538,12 @@ main(int argc, char **argv) {
 			printf("Received message SYMLINK\n");
 			struct my_msg4 *msg4 = (struct my_msg4*)msg;
 			int len_oldname = msg4->len_oldname;
-			char *oldname = malloc(len_oldname);
+			char *oldname = malloc(len_oldname + 1);
 			int len_newname = msg4->len_newname;
-			char *newname = malloc(len_newname);
+			char *newname = malloc(len_newname + 1);
 			int dir_inode_num = msg4->cur_inode;
-			CopyFrom(senderid, oldname, msg4->oldname, len_oldname);
-			CopyFrom(senderid, newname, msg4->newname, len_newname);
+			CopyFrom(senderid, oldname, msg4->oldname, len_oldname + 1);
+			CopyFrom(senderid, newname, msg4->newname, len_newname + 1);
 			printf("Old name: %s\n", oldname);
 			printf("New name: %s\n", newname);
 			_Link(oldname, newname, dir_inode_num);

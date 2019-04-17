@@ -1,6 +1,9 @@
 #include <comp421/filesystem.h>
 #include <comp421/iolib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <comp421/yalnix.h>
 
 #define OPEN 0
 #define CLOSE 1
@@ -19,6 +22,7 @@
 #define SYNC 14
 #define SHUTDOWN 15
 
+//here
 struct file_information {
 	int inum;
 	int position;
@@ -65,7 +69,7 @@ int unused_fd = MAX_OPEN_FILES;
 int flag = 0;
 int current_dir_inode = ROOTINODE;
 
-int
+void
 initialize() {
 	int i;
 	for (i = 0; i < MAX_OPEN_FILES; i++) {
@@ -173,7 +177,6 @@ Create(char *pathname) {
 	msg -> data1 = strlen(pathname);
 	msg -> data2 = current_dir_inode;
 	msg -> ptr = pathname;
-
 	int send_message = Send(msg, -FILE_SERVER);
 	// printf("RECEIVED REPLY\n");
 	if (send_message == -1) {
@@ -219,6 +222,7 @@ Read(int fd, void *buf, int size) {
 	}
 
 	open_files[fd].position += result;
+	return result;
 
 }
 
@@ -245,6 +249,7 @@ int Write(int fd, void *buf, int size){
 	}
 
 	open_files[fd].position += result;
+	return result;
 }
 
 int
@@ -319,11 +324,14 @@ Unlink(char *pathname){
 		printf("SEND MESSAGE = -1\n");
 		return -1;
 	}
-	return 0;
+
+	int result = msg->data1;
+
+	return result;
 }
 
 int
-Symlink(char* oldname, char* newname){
+SymLink(char* oldname, char* newname){
 	struct my_msg4 *msg = malloc(sizeof(struct my_msg4));
 
 	if (flag == 0) {
