@@ -766,7 +766,7 @@ _Open(char *pathname, int current_inode) {
     	filename = strrchr(pathname, '/') + 1;
 	    printf("%ld\n", &filename - &pathname + 1);
 	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname);
+	    memcpy(dirname, pathname, &filename - &pathname + 1);
 	    dirname[filename-pathname] = '\0';
     }
 
@@ -810,10 +810,17 @@ int _Create(char *pathname, int current_inode) {
     	dirname = "";
     } else {
     	filename = strrchr(pathname, '/') + 1;
-	    printf("size of malloc: %d\n", &filename - &pathname + 1);
-	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname);
-	    dirname[filename-pathname] = '\0';
+
+    	int dirnamesize = strlen(pathname);
+    	while (pathname[dirnamesize - 1] != '/') {
+    		dirnamesize --;
+    	}
+
+    	printf("dirnamesize: %d\n", dirnamesize);
+
+	    dirname = malloc(dirnamesize);
+	    memcpy(dirname, pathname, dirnamesize - 1);
+	    dirname[dirnamesize - 1] = '\0';
     }
     //////
 
@@ -1002,7 +1009,7 @@ _UnLink(char *pathname, int current_inode) {
     	filename = strrchr(pathname, '/') + 1;
 	    printf("%ld\n", &filename - &pathname + 1);
 	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname);
+	    memcpy(dirname, pathname, &filename - &pathname + 1);
 	    dirname[filename-pathname] = '\0';
     }
 
@@ -1125,7 +1132,7 @@ _MkDir(char *pathname, int current_inode) {
     	filename = strrchr(pathname, '/') + 1;
 	    printf("%ld\n", &filename - &pathname + 1);
 	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname);
+	    memcpy(dirname, pathname, &filename - &pathname + 1);
 	    dirname[filename-pathname] = '\0';
     }
 
@@ -1218,7 +1225,7 @@ _RmDir(char *pathname, int current_inode) {
     	filename = strrchr(pathname, '/') + 1;
 	    printf("%ld\n", &filename - &pathname + 1);
 	    dirname = malloc(&filename - &pathname + 1);
-	    memcpy(dirname, pathname, &filename - &pathname);
+	    memcpy(dirname, pathname, &filename - &pathname + 1);
 	    dirname[filename-pathname] = '\0';
     }
 
