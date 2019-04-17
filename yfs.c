@@ -484,7 +484,6 @@ get_inode_num_from_path(char *pathname, int dir_inode_num, int traverse_symlinks
     		return inum;
     	}
     } else {
-
     	// Path not terminated in /
     	inum = get_inode_in_dir(currstr, inum, strlen(currstr), traverse_symlinks);
 
@@ -752,9 +751,9 @@ get_inode_in_dir(char *name, int dir_inode_num, int length, int traverse_symlink
 		int inum = entry->inum;
 
 		if (strncmp(name, entry->name, length) == 0 && inum != 0) {
-			printf("Found file in dir: inum: %d, name: %s\n", inum, name);
-			if (get_inode(inum)->type == INODE_SYMLINK) {
-				printf("Found file is symlink\n");
+			// printf("Found file in dir: inum: %d, name: %s\n", inum, name);
+			if (traverse_symlinks && get_inode(inum)->type == INODE_SYMLINK) {
+				// printf("Found file is symlink\n");
 				// symlink_count++;
 				int symlink_num = get_linked_inode(inum, dir_inode_num);
 				// symlink_count = 0;
@@ -844,9 +843,9 @@ _Open(char *pathname, int current_inode) {
 
     // printf("Current inode: %d\tPathname: %s\n", current_inode, pathname);
     // int inum = get_inode_num_from_path(pathname, current_inode);
-    printf("get_inode_in_dir - filename: %s, directory_inum: %d, strlen(filename): %d\n", filename, directory_inum, strlen(filename));
+    // printf("get_inode_in_dir - filename: %s, directory_inum: %d, strlen(filename): %d\n", filename, directory_inum, strlen(filename));
     int inum = get_inode_in_dir(filename, directory_inum, strlen(filename), 1);
-    printf("inum: %d\n", inum);
+    // printf("inum: %d\n", inum);
     // printf("Done opening in yfs with inum: %d\n", inum);
     return inum;
 }
