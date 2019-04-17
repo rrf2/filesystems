@@ -1,6 +1,9 @@
 #include <comp421/filesystem.h>
 #include <comp421/iolib.h>
 #include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <comp421/yalnix.h>
 
 #define OPEN 0
 #define CLOSE 1
@@ -19,6 +22,7 @@
 #define SYNC 14
 #define SHUTDOWN 15
 
+//here
 struct file_information {
 	int inum;
 	int position;
@@ -65,7 +69,7 @@ int unused_fd = MAX_OPEN_FILES;
 int flag = 0;
 int current_dir_inode = ROOTINODE;
 
-int
+void
 initialize() {
 	int i;
 	for (i = 0; i < MAX_OPEN_FILES; i++) {
