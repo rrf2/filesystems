@@ -47,7 +47,7 @@ struct my_msg3{
 	int len;
 	int cur_inode;
 	int data;
-	char *buf;
+	void *buf;
 	void *ptr;
 };
 
@@ -452,7 +452,21 @@ ChDir(char *pathname){
 
 int
 Stat(char *pathname, struct Stat *statbuf){
-	return 0;
+
+	struct my_msg3 *msg = malloc(sizeof(struct my_msg3));
+	msg->type = STAT;
+	msg->len = strlen(pathname);
+	// printf("pathname in iolib: %s, len: %d\n", pathname, msg->len);
+	msg->cur_inode = current_dir_inode;
+	msg->ptr = statbuf;
+	msg->buf = pathname;
+	int send_message = Send(msg, -FILE_SERVER);
+	if (send_message == -1) {
+		printf("SEND MESSAGE = -1\n");
+		return -1;
+	}
+	int result = msg->len;
+	return result;
 }
 
 int
