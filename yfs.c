@@ -520,8 +520,10 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 		if (blocknum == 0) {
 			memset(buf + offset, '\0', size);
 		}
-		else
+		else {
 			memcpy(buf, block + offset, size);
+			printf("PRINTING BLOCK: %.*s\n", size, block + offset);
+		}
 		return size;
 
 	} else {
@@ -600,6 +602,7 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 	if (offset + size <= SECTORSIZE) {
 		// printf("here1\n");
 		// just copy part of the first block starting at offset
+		// printf("blocknum: %d, block addr: %x, offset: %d, buf addr: %x, size: %d\n", blocknum, block, offset, buf, size);
 		memcpy(block + offset, buf, size);
 		set_dirty(blocknum, 1);
 		return size;
@@ -1363,8 +1366,8 @@ main(int argc, char **argv) {
 			int size = msg2->data2;
 			int offset = msg2->data3;
 			char *readbuf = malloc(size);
-			int result = _Read(inum, *readbuf, offset, size);
-			CopyTo(senderid, readbuf, msg2->ptr, size);
+			int result = _Read(inum, readbuf, offset, size);
+			CopyTo(senderid, msg2->ptr, readbuf, size);
 			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
 			msg->data1 = result;
 			printf("Replying with result: %d\n", result);
@@ -1376,8 +1379,9 @@ main(int argc, char **argv) {
 			int size = msg2->data2;
 			int offset = msg2->data3;
 			char *writebuf = malloc(size);
+			printf("writebuf: %x\n", writebuf);
 			CopyFrom(senderid, writebuf, msg2->ptr, size);
-			int result = _Write(inum, *writebuf, offset, size);
+			int result = _Write(inum, writebuf, offset, size);
 			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
 			msg->data1 = result;
 			printf("Replying with result: %d\n", result);

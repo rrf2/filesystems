@@ -219,6 +219,7 @@ Read(int fd, void *buf, int size) {
 	}
 
 	open_files[fd].position += result;
+	return result;
 
 }
 
@@ -245,6 +246,7 @@ int Write(int fd, void *buf, int size){
 	}
 
 	open_files[fd].position += result;
+	return result;
 }
 
 int
