@@ -102,11 +102,11 @@ char *get_block(int num);
 struct inode *get_inode(int num);
 int main();
 void read_with_offset(int sectornum, void *buf, int offset, int size);
-int get_inode_num_from_path(char *pathname, int dir_inode);
+int get_inode_num_from_path(char *pathname, int dir_inode, int traverse_symlinks);
 int copy_data_from_inode(void *buf, int inodenum, int offset, int size);
 int write_data_to_inode(void *buf, int inodenum, int offset, int size);
 char *get_dir_entries(int inum);
-int get_inode_in_dir(char *name, int dir_inode_num, int length);
+int get_inode_in_dir(char *name, int dir_inode_num, int length, int traverse_symlinks);
 int ReadSector(int sectornum, void *buf);
 int get_free_block();
 int get_free_inode_num();
@@ -121,7 +121,7 @@ get_free_block() {
 		i ++;
 	}
 	if (i > num_blocks) {
-		printf("NO MORE FREE BLOCKS!\n");
+		// printf("NO MORE FREE BLOCKS!\n");
 		return -1;
 	} else {
 		blockbitmap[i] = 1;
@@ -139,7 +139,6 @@ set_dirty(int num, int block) {
 		elem = inode_hashtable[num % INODE_HASHTABLE_SIZE];
 
 	if (elem == NULL) {
-		printf("TRIED TO SET ELEMENT DIRTY THAT IS NOT IN CACHE!\n");
 		return;
 	} else {
 		while (elem != NULL) {
@@ -151,7 +150,6 @@ set_dirty(int num, int block) {
 				elem = elem->next;
 			}
 		}
-		printf("TRIED TO SET ELEMENT DIRTY THAT IS NOT IN CACHE!\n");
 		return;
 	}
 }
@@ -236,8 +234,6 @@ insert_elem_in_cache(int num, void *data, int block) {
 	entry->data = data;
 	entry->dirty = 0;
 
-
-
 	struct list_elem *newelem = malloc(sizeof(struct list_elem));
 	newelem->entry = entry;
 	newelem->next = NULL;
@@ -255,14 +251,11 @@ insert_elem_in_cache(int num, void *data, int block) {
 
 	if (elem == NULL) {
 		// No collision
-		// printf("No collision on insert\n");
 		if (block == 1){
 			block_hashtable[num % BLOCK_HASHTABLE_SIZE] = newelem;
-			// printf("Put elem at block_hashtable: %d\n", num % BLOCK_HASHTABLE_SIZE);
 		}
 		else {
 			inode_hashtable[num % INODE_HASHTABLE_SIZE] = newelem;
-			// printf("Put elem at inode_hashtable index: %d\n", num % INODE_HASHTABLE_SIZE);
 		}
 
 	} else {
@@ -277,6 +270,7 @@ insert_elem_in_cache(int num, void *data, int block) {
 
 int
 remove_lru_block() {
+	printf("REMOVING LRU BLOCK\n");
 	int min = num_blocks_cached + 1;
 	int lru_num;
 	int i;
@@ -292,7 +286,7 @@ remove_lru_block() {
 		}
 	}
 	// return lru_num
-
+	printf("LRU BLOCK IS: %d\n", lru_num);
 	WriteSector(lru_num, get_block(lru_num));
 
 
@@ -323,6 +317,7 @@ remove_lru_block() {
 
 int
 remove_lru_inode() {
+	printf("REMOVING LRU INODE\n");
 	int min = num_inodes_cached + 1;
 	int lru_num;
 	int i;
@@ -337,6 +332,8 @@ remove_lru_inode() {
 			elem = elem->next;
 		}
 	}
+
+	printf("LRU INODE IS: %d\n", lru_num);
 
 	int blocknum = lru_num * INODESIZE / SECTORSIZE + 1;
 	int offset = (lru_num * INODESIZE) % SECTORSIZE;
@@ -431,11 +428,8 @@ read_with_offset(int sectornum, void *buf, int offset, int size) {
 
 
 int
-get_inode_num_from_path(char *pathname, int dir_inode_num) {
-	// printf("%s\n", pathname);
+get_inode_num_from_path(char *pathname, int dir_inode_num, int traverse_symlinks) {
 	if (strlen(pathname) == 0) {
-		// printf("%s\n", "Pathname has length 0");
-		// return ERROR;
 		return dir_inode_num;
 	}
 
@@ -451,16 +445,12 @@ get_inode_num_from_path(char *pathname, int dir_inode_num) {
 
 	int length;
 
-
-	// printf("token: %s\n", token);
-	// struct inode *dirnode = get_inode(dir_inode_num);
-	// printf("dir_inode_num: %d\tdirnode->type: %d\n", dir_inode_num, dirnode->type);
 	int inum = dir_inode_num;
 
 	while (nextslash != NULL) {// && dirnode->type == INODE_DIRECTORY) {
 		// printf("Token: %s\n", token);
 		length = nextslash - currstr;
-		inum = get_inode_in_dir(currstr, inum, length);
+		inum = get_inode_in_dir(currstr, inum, length, 1);
 		if (inum == -1) {
 			printf("File not found\n");
 			return -1;
@@ -470,7 +460,6 @@ get_inode_num_from_path(char *pathname, int dir_inode_num) {
 		}
 
 		currstr = nextslash + 1;
-
 		nextslash = strchr(currstr, '/');
 
     }
@@ -483,14 +472,9 @@ get_inode_num_from_path(char *pathname, int dir_inode_num) {
     	} else {
     		return inum;
     	}
-    }
-
-
-
-    else {
-
+    } else {
     	// Path not terminated in /
-    	inum = get_inode_in_dir(currstr, inum, strlen(currstr));
+    	inum = get_inode_in_dir(currstr, inum, strlen(currstr), traverse_symlinks);
 
     	if (inum == -1) {
 			printf("File not found\n");
@@ -578,10 +562,6 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 		num_direct_block ++;
 	}
 
-	// // COPY FROM LAST BLOCK
-	// if (num_direct_block != NUM_DIRECT) {
-	// 	// COPY FROM LAST BLOCK
-
 	if (num_direct_block < NUM_DIRECT)
 		blocknum = node->direct[num_direct_block];
 	else
@@ -625,9 +605,7 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 	char *block = get_block(blocknum);
 	// COPY FROM FIRST BLOCK
 	if (offset + size <= SECTORSIZE) {
-		// printf("here1\n");
 		// just copy part of the first block starting at offset
-		// printf("blocknum: %d, block addr: %x, offset: %d, buf addr: %x, size: %d\n", blocknum, block, offset, buf, size);
 		memcpy(block + offset, buf, size);
 		set_dirty(blocknum, 1);
 		return size;
@@ -661,9 +639,6 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 		num_direct_block ++;
 	}
 
-	// // COPY FROM LAST BLOCK / INDIRECT
-	// if (num_direct_block != NUM_DIRECT) {
-	// 	// COPY FROM LAST BLOCK
 	if (num_direct_block < NUM_DIRECT)
 		blocknum = node->direct[num_direct_block];
 	else
@@ -739,7 +714,7 @@ remove_dir_entry(int dir_inode_num, int rm_inum) {
 
 
 int
-get_inode_in_dir(char *name, int dir_inode_num, int length) {
+get_inode_in_dir(char *name, int dir_inode_num, int length, int traverse_symlinks) {
 	// printf("GETTING INODE IN DIR  %s\n", name);
 
 	struct inode *dirnode = get_inode(dir_inode_num);
@@ -756,9 +731,9 @@ get_inode_in_dir(char *name, int dir_inode_num, int length) {
 		int inum = entry->inum;
 
 		if (strncmp(name, entry->name, length) == 0 && inum != 0) {
-			printf("Found file in dir: inum: %d, name: %s\n", inum, name);
-			if (get_inode(inum)->type == INODE_SYMLINK) {
-				printf("Found file is symlink\n");
+			// printf("Found file in dir: inum: %d, name: %s\n", inum, name);
+			if (traverse_symlinks && get_inode(inum)->type == INODE_SYMLINK) {
+				// printf("Found file is symlink\n");
 				// symlink_count++;
 				int symlink_num = get_linked_inode(inum, dir_inode_num);
 				// symlink_count = 0;
@@ -801,7 +776,7 @@ get_linked_inode(int symlink_inum, int directory_inum) {
    	memcpy(data, symlink_block, symlink_inode->size);
    	data[symlink_inode->size] = '\0';
    	// printf("data: %s\n", data);
-   	return get_inode_num_from_path(data, directory_inum);
+   	return get_inode_num_from_path(data, directory_inum, 1);
 }
 
 int
@@ -838,7 +813,7 @@ _Open(char *pathname, int current_inode) {
     }
 
     symlink_count = 0;
-    int directory_inum = get_inode_num_from_path(dirname, current_inode);
+    int directory_inum = get_inode_num_from_path(dirname, current_inode, 1);
 	// printf("Directory inum: %d\n", directory_inum);
 	char *dir_entries = get_dir_entries(directory_inum);
 
@@ -848,9 +823,9 @@ _Open(char *pathname, int current_inode) {
 
     // printf("Current inode: %d\tPathname: %s\n", current_inode, pathname);
     // int inum = get_inode_num_from_path(pathname, current_inode);
-    printf("get_inode_in_dir - filename: %s, directory_inum: %d, strlen(filename): %d\n", filename, directory_inum, strlen(filename));
-    int inum = get_inode_in_dir(filename, directory_inum, strlen(filename));
-    printf("inum: %d\n", inum);
+    // printf("get_inode_in_dir - filename: %s, directory_inum: %d, strlen(filename): %d\n", filename, directory_inum, strlen(filename));
+    int inum = get_inode_in_dir(filename, directory_inum, strlen(filename), 1);
+    // printf("inum: %d\n", inum);
     // printf("Done opening in yfs with inum: %d\n", inum);
     return inum;
 }
@@ -900,7 +875,7 @@ int _Create(char *pathname, int current_inode) {
 	}
 	// printf("Creating file: %s in directory %s from pathname %s\n", filename, dirname, pathname);
     symlink_count = 0;
-	int directory_inum = get_inode_num_from_path(dirname, current_inode);
+	int directory_inum = get_inode_num_from_path(dirname, current_inode, 1);
 	struct inode *dir_inode = get_inode(directory_inum);
 	if (dir_inode->type != INODE_DIRECTORY) {
 		return ERROR;
@@ -912,7 +887,7 @@ int _Create(char *pathname, int current_inode) {
 		return -1;
 	}
 
-	int current_inode_num = get_inode_in_dir(filename, directory_inum, strlen(filename));
+	int current_inode_num = get_inode_in_dir(filename, directory_inum, strlen(filename), 1);
 	if (current_inode_num != ERROR) {
 		struct inode *old_inode = get_inode(current_inode_num);
 		if (old_inode->type == INODE_DIRECTORY) {
@@ -998,7 +973,7 @@ _Link(char *oldname, char *newname, int current_inode) {
 
     // printf("Current inode: %d\tOldname: %s\n", current_inode, oldname);
     symlink_count = 0;
-	int old_inode_num = get_inode_num_from_path(oldname, current_inode);
+	int old_inode_num = get_inode_num_from_path(oldname, current_inode, 0);
 	if (old_inode_num == -1) {
 		printf("No file %s exists\n", oldname);
 	}
@@ -1046,7 +1021,7 @@ _Link(char *oldname, char *newname, int current_inode) {
     	new_dir_entry->name[strlen(filename)] = (char)'\0';
     }
     symlink_count = 0;
-    int dir_inum = get_inode_num_from_path(dirname, current_inode);
+    int dir_inum = get_inode_num_from_path(dirname, current_inode, 1);
     add_dir_entry(dir_inum, new_dir_entry);
 
 	old_inode->nlink++;
@@ -1090,7 +1065,7 @@ _UnLink(char *pathname, int current_inode) {
     }
 
 	symlink_count = 0;
-    int directory_inum = get_inode_num_from_path(dirname, current_inode);
+    int directory_inum = get_inode_num_from_path(dirname, current_inode, 1);
     // struct node *directory_inode = get_inode(directory_inum);
     if (directory_inum == 0) {
     	return ERROR;
@@ -1102,7 +1077,7 @@ _UnLink(char *pathname, int current_inode) {
 		return -1;
 	}
 
-	int unlinking_inum = get_inode_in_dir(filename, directory_inum, strlen(filename));
+	int unlinking_inum = get_inode_in_dir(filename, directory_inum, strlen(filename), 0);
 
 	struct inode *unlinking_inode = get_inode(unlinking_inum);
 
@@ -1146,7 +1121,7 @@ _SymLink(char *oldname, char *newname, int current_inode) {
 		return ERROR;
 	}
 
-	if (get_inode_num_from_path(oldname, current_inode) == -1) {
+	if (get_inode_num_from_path(oldname, current_inode, 0) == -1) {
 		printf("File to link to does not exist\n");
 		return ERROR;
 	}
@@ -1170,7 +1145,7 @@ _ReadLink(char *pathname, char *buf, int len, int current_inode, int sender_pid)
          current_inode = ROOTINODE;
     }
     symlink_count = 0;
-    int symlink_inum = get_inode_num_from_path(pathname, current_inode);
+    int symlink_inum = get_inode_num_from_path(pathname, current_inode, 0);
     // printf("symlink inum: %d\n", symlink_inum);
 
     if (symlink_inum == 0) {
@@ -1245,12 +1220,12 @@ _MkDir(char *pathname, int current_inode) {
 	}
 
 	symlink_count = 0;
-	int directory_inum = get_inode_num_from_path(dirname, current_inode);
+	int directory_inum = get_inode_num_from_path(dirname, current_inode, 1);
 	// printf("Directory inum: %d\n", directory_inum);
 	// char *dir_entries = get_dir_entries(directory_inum);
 
 
-	if (get_inode_in_dir(filename, directory_inum, strlen(filename)) != ERROR) {
+	if (get_inode_in_dir(filename, directory_inum, strlen(filename), 0) != ERROR) {
 		printf("%s\n", "Attempting to create duplicate directory!");
 		return ERROR;
 	}
@@ -1346,11 +1321,11 @@ _RmDir(char *pathname, int current_inode) {
     // printf("Filename: %s, filenamelen: %d\n", filename, (int)strlen(filename));
     symlink_count = 0;
 
-    int upper_directory_inum = get_inode_num_from_path(dirname, current_inode);
+    int upper_directory_inum = get_inode_num_from_path(dirname, current_inode, 1);
 	// printf("Upper directory inum: %d\n", upper_directory_inum);
 	// char *upper_dir_entries = get_dir_entries(upper_directory_inum);
 
-	int rm_directory_inum = get_inode_in_dir(filename, upper_directory_inum, strlen(filename));
+	int rm_directory_inum = get_inode_in_dir(filename, upper_directory_inum, strlen(filename), 0);
 	if (rm_directory_inum == -1) {
 		printf("Directory does not exist\n");
 		return ERROR;
@@ -1378,7 +1353,7 @@ _RmDir(char *pathname, int current_inode) {
 struct Stat*
 _Stat(char *pathname, int current_inode_num) {
 	symlink_count = 0;
-	int inum = get_inode_num_from_path(pathname, current_inode_num);
+	int inum = get_inode_num_from_path(pathname, current_inode_num, 0);
 	struct inode *node = get_inode(inum);
 	struct Stat *statbuf = malloc(sizeof(struct Stat));
 	statbuf->inum = inum;
@@ -1433,7 +1408,7 @@ _ChDir(char *pathname, int current_inode) {
     }
 	printf("Changing directory to: %s\n", pathname);
 	symlink_count = 0;
-	int inum = get_inode_num_from_path(pathname, current_inode);
+	int inum = get_inode_num_from_path(pathname, current_inode, 1);
 	if (get_inode(inum)->type != INODE_DIRECTORY) {
 		printf("Requested pathname is not a directory\n");
 		return -1;
@@ -1582,9 +1557,10 @@ main(int argc, char **argv) {
 			int dir_inode_num = msg4->cur_inode;
 			CopyFrom(senderid, oldname, msg4->oldname, len_oldname + 1);
 			CopyFrom(senderid, newname, msg4->newname, len_newname + 1);
-			_SymLink(oldname, newname, dir_inode_num);
+			int status = _SymLink(oldname, newname, dir_inode_num);
 			struct my_msg4 *msg = malloc(sizeof(struct my_msg4));
 			msg->type = SYMLINK;
+			msg->len_oldname = status;
 			Reply(msg, senderid);
 		} else if (msg->type == READLINK) {
 			printf("%s\n", "Received message READLINK");
