@@ -159,17 +159,33 @@ free_inode_and_blocks(int inum) {
 	node->type = INODE_FREE;
 	node->size = 0;
 	node->nlink = 0;
+	int blocknum;
 
 	int i;
+	// Free direct bocks
 	for (i=0; i<NUM_DIRECT;i++) {
-		int blocknum = node->direct[i];
-		blockbitmap[blocknum] = 0;
-		memset(get_block(blocknum), '\0', SECTORSIZE);
-		set_dirty(blocknum, 1);
+		blocknum = node->direct[i];
+		if (blocknum != 0) {
+			blockbitmap[blocknum] = 0;
+			memset(get_block(blocknum), '\0', SECTORSIZE);
+			set_dirty(blocknum, 1);
+		}
 		node->direct[i] = 0;
 	}
+
+	// Free indirect blocks
+	int *indirect_blocks = get_block(node->indirect);
+	for (i=0; i < SECTORSIZE / sizeof(int); i ++) {
+		blocknum = indirect_blocks[i];
+		if (blocknum != 0) {
+			blockbitmap[blocknum] = 0;
+			memset(get_block(blocknum), '\0', SECTORSIZE);
+			set_dirty(blocknum, 1);
+		}
+		indirect_blocks[i] = 0;
+	}
+
 	set_dirty(inum, 0);
-	//TODO: FREE INDIRECT blocks
 }
 
 int
@@ -875,13 +891,19 @@ int _Create(char *pathname, int current_inode) {
     node->size = 0;
     node->nlink = 1;
     node->direct[0] = get_free_block();
+    node->indirect = get_free_block();
+    int *indirect_blocks = get_block(node->indirect);
+    int i;
+    for (i=0; i < SECTORSIZE / sizeof(int); i++) {
+    	indirect_blocks[i] = 0;
+    }
+    set_dirty(node->indirect, 1);
     node->reuse ++;
     set_dirty(new_inum, 0);
 
     // Create dir_entry
 	struct dir_entry *dir_entry = malloc(sizeof(dir_entry));
     dir_entry->inum = new_inum;
-    int i;
     for (i=0; i<strlen(filename); i++) {
     	dir_entry->name[i] = filename[i];
     }
@@ -1171,7 +1193,6 @@ _MkDir(char *pathname, int current_inode) {
 
 	int new_inum = get_free_inode_num();
     struct inode *new_inode = get_inode(new_inum);
-    set_dirty(new_inum, 0);
     new_inode->type = INODE_DIRECTORY;
     new_inode->nlink = 2;
     new_inode->size = 2 * sizeof(struct dir_entry);
@@ -1179,10 +1200,18 @@ _MkDir(char *pathname, int current_inode) {
     int new_blocknum = get_free_block();
     char* new_block = get_block(new_blocknum);
     new_inode->direct[0] = new_block;
+    new_inode->indirect = get_free_block();
+    int *indirect_blocks = get_block(new_inode->indirect);
+    int i;
+    for (i=0; i < SECTORSIZE / sizeof(int); i++) {
+    	indirect_blocks[i] = 0;
+    }
+    set_dirty(new_inode->indirect, 1);
+    new_inode->reuse ++;
+    set_dirty(new_inum, 0);
 
 
     struct dir_entry *dir_entry1 = malloc(sizeof(struct dir_entry));
-	int i;
 	for (i=0; i<strlen(filename); i++) {
     	dir_entry1->name[i] = filename[i];
     }
