@@ -172,6 +172,12 @@ Create(char *pathname) {
 		flag = 1;
 	}
 
+	int fd = get_unused_fd();
+
+	if (fd == -1) {
+		return -1;
+	}
+
 	struct my_msg2 *msg = malloc(sizeof(struct my_msg2));
 	msg -> type = CREATE;
 	msg -> data1 = strlen(pathname);
@@ -182,8 +188,6 @@ Create(char *pathname) {
 	if (send_message == -1) {
 		return -1;
 	}
-
-	int fd = get_unused_fd();
 
 	int inum = msg->data1;
 

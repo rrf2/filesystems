@@ -11,10 +11,9 @@ main()
 	int fd;
 	int i;
 	char name[7];
-
 	for (i = 0; i < 40; i++) {
 		sprintf(name, "file%02d", i);
-		fprintf("Creating name: %s\n", name);
+		printf("Creating name: %s\n", name);
 		fd = Create(name);
 		// Close(fd);
 	}
