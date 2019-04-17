@@ -15,6 +15,7 @@ main()
 
 	for (i = 0; i < 32; i++) {
 		sprintf(name, "file%02d", i);
+		printf("name: %s\n", name);
 		fd = Create(name);
 		Close(fd);
 	}

@@ -173,7 +173,6 @@ Create(char *pathname) {
 	msg -> data1 = strlen(pathname);
 	msg -> data2 = current_dir_inode;
 	msg -> ptr = pathname;
-
 	int send_message = Send(msg, -FILE_SERVER);
 	// printf("RECEIVED REPLY\n");
 	if (send_message == -1) {

@@ -523,7 +523,7 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 		}
 		else {
 			memcpy(buf, block + offset, size);
-			printf("PRINTING BLOCK: %.*s\n", size, block + offset);
+			// printf("PRINTING BLOCK: %.*s\n", size, block + offset);
 		}
 		return size;
 
@@ -802,16 +802,20 @@ int _Create(char *pathname, int current_inode) {
     char *filename;
     char *dirname;
 
+    ////////
+    // printf("Pathname: %s\n", pathname);
+
     if (strchr(pathname, '/') == NULL) {
     	filename = pathname;
     	dirname = "";
     } else {
     	filename = strrchr(pathname, '/') + 1;
-	    printf("%ld\n", &filename - &pathname + 1);
+	    printf("size of malloc: %d\n", &filename - &pathname + 1);
 	    dirname = malloc(&filename - &pathname + 1);
 	    memcpy(dirname, pathname, &filename - &pathname);
 	    dirname[filename-pathname] = '\0';
     }
+    //////
 
     printf("Dirname: %s, dirnamelen: %d\n", dirname, (int)strlen(dirname));
     printf("Filename: %s, filenamelen: %d\n", filename, (int)strlen(filename));
@@ -1357,7 +1361,7 @@ main(int argc, char **argv) {
 	struct my_msg1 *msg = malloc(sizeof(struct my_msg1));
 
 	while(1) {
-		printf("Receiving\n");
+		// printf("Receiving\n");
 		int senderid = Receive(msg);
 		if (senderid == 0) {
 			printf("DEADLOCK\n");
@@ -1367,10 +1371,10 @@ main(int argc, char **argv) {
 		if (msg->type == OPEN) {
 			printf("Received message OPEN\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
-			char *pathname = malloc(msg2->data2);
 			int len = msg2->data1;
+			char *pathname = malloc(len + 1);
 			int dir_inode_num = msg2->data2;
-			CopyFrom(senderid, pathname, msg2->ptr, len);
+			CopyFrom(senderid, pathname, msg2->ptr, len + 1);
 			int inum = _Open(pathname, dir_inode_num);
 			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
 			msg->data1 = inum;
@@ -1381,10 +1385,10 @@ main(int argc, char **argv) {
 		} else if (msg->type == CREATE) {
 			printf("Received message CREATE\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
-			char *pathname = malloc(msg2->data2);
 			int len = msg2->data1;
+			char *pathname = malloc(len + 1);
 			int dir_inode_num = msg2->data2;
-			CopyFrom(senderid, pathname, msg2->ptr, len);
+			CopyFrom(senderid, pathname, msg2->ptr, len + 1);
 			printf("Pathname: %s\n", pathname);
 			int inum = _Create(pathname, dir_inode_num);
 			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
@@ -1411,7 +1415,6 @@ main(int argc, char **argv) {
 			int size = msg2->data2;
 			int offset = msg2->data3;
 			char *writebuf = malloc(size);
-			printf("writebuf: %x\n", writebuf);
 			CopyFrom(senderid, writebuf, msg2->ptr, size);
 			int result = _Write(inum, writebuf, offset, size);
 			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
@@ -1447,10 +1450,10 @@ main(int argc, char **argv) {
 		} else if (msg->type == UNLINK) {
 			printf("Received message UNLINK\n");
 			struct my_msg2 *msg2 = (struct my_msg2*)msg;
-			char *pathname = malloc(msg2->data2);
 			int len = msg2->data1;
+			char *pathname = malloc(len + 1);
 			int dir_inode_num = msg2->data2;
-			CopyFrom(senderid, pathname, msg2->ptr, len);
+			CopyFrom(senderid, pathname, msg2->ptr, len + 1);
 			printf("Pathname: %s\n", pathname);
 			int inum = _UnLink(pathname, dir_inode_num);
 			struct my_msg1 *msg = malloc(sizeof(struct my_msg2));
@@ -1461,12 +1464,12 @@ main(int argc, char **argv) {
 			printf("Received message SYMLINK\n");
 			struct my_msg4 *msg4 = (struct my_msg4*)msg;
 			int len_oldname = msg4->len_oldname;
-			char *oldname = malloc(len_oldname);
+			char *oldname = malloc(len_oldname + 1);
 			int len_newname = msg4->len_newname;
-			char *newname = malloc(len_newname);
+			char *newname = malloc(len_newname + 1);
 			int dir_inode_num = msg4->cur_inode;
-			CopyFrom(senderid, oldname, msg4->oldname, len_oldname);
-			CopyFrom(senderid, newname, msg4->newname, len_newname);
+			CopyFrom(senderid, oldname, msg4->oldname, len_oldname + 1);
+			CopyFrom(senderid, newname, msg4->newname, len_newname + 1);
 			printf("Old name: %s\n", oldname);
 			printf("New name: %s\n", newname);
 			_Link(oldname, newname, dir_inode_num);
