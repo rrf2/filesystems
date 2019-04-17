@@ -181,7 +181,7 @@ get_free_inode_num() {
 			return i;
 		i ++;
 	}
-	return ERROR; 
+	return ERROR;
 }
 
 
@@ -277,23 +277,25 @@ remove_lru_block() {
 	WriteSector(lru_num, get_block(lru_num));
 
 
+	elem = block_hashtable[lru_num % BLOCK_HASHTABLE_SIZE];
+
 	if (elem == NULL) {
 		printf("Error in remove_lru_block 1\n");
 		return -1;
 	} else if (elem->entry->num == lru_num) {
-		block_hashtable[num % BLOCK_HASHTABLE_SIZE] = NULL;
+		block_hashtable[lru_num % BLOCK_HASHTABLE_SIZE] = NULL;
 	} else {
 		struct list_elem *next_elem = elem->next;
 		while (next_elem != NULL) {
 			struct cache_entry *entry = next_elem->entry;
-			if (entry->num == num) {
+			if (entry->num == lru_num) {
 				elem->next = next_elem->next;
 				return;
 			}
 			elem = next_elem;
 			next_elem = next_elem->next;
 		}
-		printf("Error in remove_lru_block 2\n")
+		printf("Error in remove_lru_block 2\n");
 		return -1;
 	}
 
@@ -325,25 +327,25 @@ remove_lru_inode() {
 	memcpy(block + offset, get_inode(lru_num), INODESIZE);
 	set_dirty(blocknum, 1);
 
-	struct list_elem *elem = inode_hashtable[num % INODE_HASHTABLE_SIZE];
+	elem = inode_hashtable[lru_num % INODE_HASHTABLE_SIZE];
 
 	if (elem == NULL) {
 		printf("Error in remove_lru_inode 1\n");
 		return -1;
 	} else if (elem->entry->num == lru_num) {
-		inode_hashtable[num % INODE_HASHTABLE_SIZE] = NULL;
+		inode_hashtable[lru_num % INODE_HASHTABLE_SIZE] = NULL;
 	} else {
 		struct list_elem *next_elem = elem->next;
 		while (next_elem != NULL) {
 			struct cache_entry *entry = next_elem->entry;
-			if (entry->num == num) {
+			if (entry->num == lru_num) {
 				elem->next = next_elem->next;
 				return lru_num;
 			}
 			elem = next_elem;
 			next_elem = next_elem->next;
 		}
-		printf("Error in remove_lru_inode 2\n")
+		printf("Error in remove_lru_inode 2\n");
 		return -1;
 	}
 
@@ -496,7 +498,7 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 		size = node->size - offset;
 
 	//FIND FIRST BLOCK TO USE and OFFSET
-	int indirect_blocks[SECTORSIZE / sizeof(int)] = get_block(node->indirect);
+	int *indirect_blocks = get_block(node->indirect);
 	int num_direct_block = offset / SECTORSIZE;
 	// if (node->size > SECTORSIZE * NUM_DIRECT)
 	// 	int indirect_blocks[SECTORSIZE / sizeof(int)] = ;
@@ -577,7 +579,8 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 	int size_written = 0;
 
 	//FIND FIRST BLOCK TO USE and OFFSET
-	int indirect_blocks[SECTORSIZE / sizeof(int)] = get_block(node->indirect);
+	int blocknum;
+	int *indirect_blocks = get_block(node->indirect);
 	int num_direct_block = offset / SECTORSIZE;
 	offset = offset % SECTORSIZE;
 
@@ -1214,10 +1217,10 @@ _RmDir(char *pathname, int current_inode) {
 
 struct Stat*
 _Stat(char *pathname, int current_inode_num) {
-	int inum = get_inode_num_from_path(path, current_inode_num);
+	int inum = get_inode_num_from_path(pathname, current_inode_num);
 	struct inode *node = get_inode(inum);
 	struct Stat *statbuf = malloc(sizeof(struct Stat));
-	statbuf->inum = node->inum;
+	statbuf->inum = inum;
 	statbuf->type = node->type;
 	statbuf->size = node->size;
 	statbuf->nlink = node->nlink;
@@ -1497,7 +1500,7 @@ main(int argc, char **argv) {
 			CopyFrom(senderid, pathname, msg->buf, len);
 			struct Stat* statbuf = _Stat(pathname, cur_inode);
 			CopyTo(senderid, statbuf, msg->ptr, sizeof(struct Stat));
-			msg->data1 = 0;
+			msg->len = 0;
 			Reply(msg, senderid);
 		} else if (msg->type == SYNC) {
 			_Sync();
