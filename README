@@ -1,7 +1,2 @@
-The mkyfs.c program in this directory should be run under Unix/Linux,
-not under Yalnix.
-
-All other programs in this directory are some sample test programs
-you can run under Yalnix and YFS for Lab 3.
-
-If you find any problems with these test programs, let me know.
+Our file system utilizes a cache that is structured as a hashmap. To add/remove items we created auxillary functions.
+The iolib sends messages to the file system. The main() function in the file system then decides which function to call (_Open, _Create, etc.) depending on the message type received. When the behavior is unexpected, our file system returns ERROR.
