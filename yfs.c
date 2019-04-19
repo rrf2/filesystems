@@ -517,6 +517,7 @@ int
 copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 	// printf("COPYING DATA FROM INODE num: %d\toffset: %d\tsize: %d\n", inodenum, offset, size);
 	struct inode *node = get_inode(inodenum);
+	printf("inodenum: %d\n", inodenum);
 	if (offset + size > node->size) {
 		size = node->size - offset;
 		if (size == 0) {
@@ -536,12 +537,16 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 	// 	int indirect_blocks[SECTORSIZE / sizeof(int)] = ;
 	offset = offset % SECTORSIZE;
 	int blocknum;
-	if (num_direct_block < NUM_DIRECT)
+	if (num_direct_block < NUM_DIRECT) {
+		printf("num_direct_block: %d\n", num_direct_block);
 		blocknum = node->direct[num_direct_block];
-	else
+	}
+	else {
 		blocknum = indirect_blocks[num_direct_block - NUM_DIRECT];
+	}
 
 	char *block = get_block(blocknum);
+	printf("blocknum: %d\n", blocknum);
 	// COPY FROM FIRST BLOCK
 	if (offset + size <= SECTORSIZE) {
 		// just copy part of the first block starting at offset
@@ -684,6 +689,7 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 
 char *
 get_dir_entries(int inum) {
+	printf("dir inum: %d\n", inum);
 	struct inode *dirnode = get_inode(inum);
 	if (dirnode->type != INODE_DIRECTORY) {
 		// printf("%s\n", "inode num given is not a directory");
@@ -698,6 +704,7 @@ get_dir_entries(int inum) {
 
 void
 add_dir_entry(int dir_inode_num, struct dir_entry *new_entry) {
+	printf("in add_dir_entry - node 1 direct 0: %d\n", get_inode(1)->direct[0]);
 	struct inode *dirnode = get_inode(dir_inode_num);
 	char *dir_entries = get_dir_entries(dir_inode_num);
 	int offset;
@@ -710,6 +717,7 @@ add_dir_entry(int dir_inode_num, struct dir_entry *new_entry) {
 		}
 	}
 	write_data_to_inode(new_entry, dir_inode_num, dirnode->size, sizeof(struct dir_entry));
+	printf("in add_dir_entry - node 1 direct 0: %d\n", get_inode(1)->direct[0]);
 	return;
 }
 
@@ -835,6 +843,7 @@ _Open(char *pathname, int current_inode) {
 
 
 int _Create(char *pathname, int current_inode) {
+	printf("in create- node 1 direct 0: %d\n", get_inode(1)->direct[0]);
 	if (current_inode == 0) {
 		return ERROR;
 	}
@@ -875,6 +884,8 @@ int _Create(char *pathname, int current_inode) {
 		printf("Filename too long!");
 		return -1;
 	}
+
+	printf("in create- node 1 direct 0: %d\n", get_inode(1)->direct[0]);
 	// printf("Creating file: %s in directory %s from pathname %s\n", filename, dirname, pathname);
     symlink_count = 0;
 	int directory_inum = get_inode_num_from_path(dirname, current_inode, 1);
@@ -887,6 +898,9 @@ int _Create(char *pathname, int current_inode) {
 	if (dir_entries == NULL) {
 		return -1;
 	}
+
+	printf("in create- node 1 direct 0: %d\n", get_inode(1)->direct[0]);
+
 	int current_inode_num = get_inode_in_dir(filename, directory_inum, strlen(filename), 1);
 	if (current_inode_num != ERROR) {
 		struct inode *old_inode = get_inode(current_inode_num);
@@ -905,6 +919,7 @@ int _Create(char *pathname, int current_inode) {
 	}
 
     // Create inode
+    printf("in create- node 1 direct 0: %d\n", get_inode(1)->direct[0]);
     int new_inum = get_free_inode_num();
     struct inode *node = get_inode(new_inum);
     node->type = INODE_REGULAR;
@@ -921,6 +936,8 @@ int _Create(char *pathname, int current_inode) {
     node->reuse ++;
     set_dirty(new_inum, 0);
 
+    printf("in create- node 1 direct 0: %d\n", get_inode(1)->direct[0]);
+
     // Create dir_entry
 	struct dir_entry *dir_entry = malloc(sizeof(dir_entry));
     dir_entry->inum = new_inum;
@@ -931,6 +948,7 @@ int _Create(char *pathname, int current_inode) {
     	dir_entry->name[strlen(filename)] = (char)'\0';
     }
 
+   	printf("adding dir entry: %d\n", directory_inum);
     add_dir_entry(directory_inum, dir_entry);
 
     for (i = 0; filename[i] != '\0'; i++) {
@@ -938,6 +956,7 @@ int _Create(char *pathname, int current_inode) {
     }
 
     //TODO: add stuff to cache probably?
+    printf("new inum: %d\n", new_inum);
     return new_inum;
 }
 
@@ -1387,7 +1406,9 @@ _Sync() {
 		struct list_elem *elem = block_hashtable[i];
 		while (elem != NULL) {
 			if (elem->entry->dirty == 1) {
-				WriteSector(elem->entry->num, elem -> entry -> data);
+				printf("elem->entry->num: %d\n", elem->entry->num);
+				printf("block %.1s\n", elem->entry->data);
+				WriteSector(elem->entry->num, elem->entry->data);
 			}
 			elem = elem->next;
 		}
@@ -1427,6 +1448,7 @@ _Shutdown() {
 
 int
 main(int argc, char **argv) {
+	printf("in main- node 1 direct 0: %d\n", get_inode(1)->direct[0]);
 	// Read FS HEADER
 	Register(FILE_SERVER);
 	read_with_offset(1, &header, 0, INODESIZE);
@@ -1446,6 +1468,9 @@ main(int argc, char **argv) {
 	for (i = 0; i < num_blocks_used; i ++) {
 		blockbitmap[i + 1] = 1;
 	}
+	for (i = 0; i < NUM_DIRECT; i ++) {
+		blockbitmap[get_inode(ROOTINODE)->direct[i]] = 1;
+	}
 
 	// Initialize block bitmap
 	inodebitmap = malloc(num_inodes * sizeof(int));
@@ -1462,6 +1487,8 @@ main(int argc, char **argv) {
 			Exec(argv[1], argv + 1);
 		}
 	}
+
+	printf("in main- node 1 direct 0: %d\n", get_inode(1)->direct[0]);
 
 	struct my_msg1 *msg = malloc(sizeof(struct my_msg1));
 
