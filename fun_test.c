@@ -17,10 +17,10 @@ main()
 		fd = Create(name);
 		// Close(fd);
 	}
-
 	for (i = 0; i < 40; i++) {
 		sprintf(name, "file%02d", i);
-		fprintf("Opening name: %s\n", name);
+		printf("Opening name: %s\n", name);
+		fd = Open(name);
 	}
 
 	Shutdown();
