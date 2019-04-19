@@ -9,16 +9,23 @@ int
 main()
 {
 	printf("Making directory: %s\n", "dir");
-	MkDir("/dir1");
-	printf("Making directory: %s \n", "dir2");
-	MkDir("/dir1/dir2");
+	SymLink("/", "/a");
+	SymLink("/", "/b");
+	ChDir("/a");
+	Create("f");
+	Open("/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/a/f");
+	// MkDir("/dir1");
+	// printf("Making directory: %s \n", "dir2");
+	// MkDir("/dir1/dir2");
 
-	printf("Creating SymLink from dir2 to dir1...\n");
-	SymLink("/dir1", "a")
-	SymLink("/dir1/dir2", "b")
+	// Create("/dir1/f");
 
-	Open("/dir1/a");
-	Open("/dir1/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b");
+	// printf("Creating SymLink from dir2 to dir1...\n");
+	// SymLink("/dir1", "/dir1/a");
+	// SymLink("/dir1", "/dir1/b");
+
+	// Open("/dir1/a");
+	// Open("/dir1/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/a/b/f");
 
 	Shutdown();
 }
