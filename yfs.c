@@ -455,6 +455,8 @@ get_inode_num_from_path(char *pathname, int dir_inode_num, int traverse_symlinks
 		nextslash = strchr(currstr, '/');
 	}
 
+	printf("PATHNAME: %s\n", pathname);
+
 	int length;
 
 	int inum = dir_inode_num;
@@ -485,8 +487,10 @@ get_inode_num_from_path(char *pathname, int dir_inode_num, int traverse_symlinks
     		return inum;
     	}
     } else {
+    	printf("currstr: %s\n", currstr);
     	// Path not terminated in /
     	inum = get_inode_in_dir(currstr, inum, strlen(currstr), traverse_symlinks);
+    	printf("inum: %d\n", inum);
 
     	if (inum == -1) {
 			// printf("File not found\n");
@@ -511,7 +515,7 @@ get_inode_num_from_path(char *pathname, int dir_inode_num, int traverse_symlinks
 
 int
 copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
-	printf("COPYING DATA FROM INODE num: %d\toffset: %d\tsize: %d\n", inodenum, offset, size);
+	// printf("COPYING DATA FROM INODE num: %d\toffset: %d\tsize: %d\n", inodenum, offset, size);
 	struct inode *node = get_inode(inodenum);
 	if (offset + size > node->size) {
 		size = node->size - offset;
@@ -623,6 +627,7 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 	char *block = get_block(blocknum);
 	// COPY FROM FIRST BLOCK
 	if (offset + size <= SECTORSIZE) {
+		printf("write blocknum: %d\n", blocknum);
 		// just copy part of the first block starting at offset
 		memcpy(block + offset, buf, size);
 		set_dirty(blocknum, 1);
@@ -736,10 +741,11 @@ get_inode_in_dir(char *name, int dir_inode_num, int length, int traverse_symlink
 	}
 	char *dir_entries = get_dir_entries(dir_inode_num);
 	int offset = 0;
+	printf("dirnode size: %d\n", dirnode->size);
 	while (offset < dirnode->size) {
 		struct dir_entry *entry = (struct dir_entry*)&dir_entries[offset];
 		int inum = entry->inum;
-
+		printf("entry->name: %.*s\n", length, entry->name);
 		if (strncmp(name, entry->name, length) == 0 && inum != 0) {
 			if (traverse_symlinks && get_inode(inum)->type == INODE_SYMLINK) {
 				int symlink_num = get_linked_inode(inum, dir_inode_num);
@@ -1405,7 +1411,7 @@ _ChDir(char *pathname, int current_inode) {
 	symlink_count = 0;
 	int inum = get_inode_num_from_path(pathname, current_inode, 1);
 	if (get_inode(inum)->type != INODE_DIRECTORY) {
-		printf("Requested pathname is not a directory\n");
+		printf("Requested pathname is of type: %d, inum: %d, not a directory\n", get_inode(inum)->type, inum);
 		return -1;
 	}
 	return inum;
