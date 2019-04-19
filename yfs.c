@@ -295,7 +295,7 @@ remove_lru_block() {
 		}
 	}
 	// return lru_num
-	printf("LRU BLOCK IS: %d\n", lru_num);
+	// printf("LRU BLOCK IS: %d\n", lru_num);
 	WriteSector(lru_num, get_block(lru_num));
 
 
@@ -342,7 +342,7 @@ remove_lru_inode() {
 		}
 	}
 
-	printf("LRU INODE IS: %d\n", lru_num);
+	// printf("LRU INODE IS: %d\n", lru_num);
 
 	int blocknum = lru_num * INODESIZE / SECTORSIZE + 1;
 	int offset = (lru_num * INODESIZE) % SECTORSIZE;
@@ -511,12 +511,19 @@ get_inode_num_from_path(char *pathname, int dir_inode_num, int traverse_symlinks
 
 int
 copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
-	// printf("COPYING DATA FROM INODE num: %d\toffset: %d\tsize: %d\n", inodenum, offset, size);
+	printf("COPYING DATA FROM INODE num: %d\toffset: %d\tsize: %d\n", inodenum, offset, size);
 	struct inode *node = get_inode(inodenum);
+	if (offset + size > node->size) {
+		size = node->size - offset;
+		if (size == 0) {
+			return 0;
+		}
+	}
 	int size_copied = 0;
 
 	if (offset + size > node->size)
 		size = node->size - offset;
+
 
 	//FIND FIRST BLOCK TO USE and OFFSET
 	int *indirect_blocks = get_block(node->indirect);
@@ -524,9 +531,6 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 	// if (node->size > SECTORSIZE * NUM_DIRECT)
 	// 	int indirect_blocks[SECTORSIZE / sizeof(int)] = ;
 	offset = offset % SECTORSIZE;
-	if (num_direct_block < NUM_DIRECT) {
-
-	}
 	int blocknum;
 	if (num_direct_block < NUM_DIRECT)
 		blocknum = node->direct[num_direct_block];
@@ -534,7 +538,6 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 		blocknum = indirect_blocks[num_direct_block - NUM_DIRECT];
 
 	char *block = get_block(blocknum);
-
 	// COPY FROM FIRST BLOCK
 	if (offset + size <= SECTORSIZE) {
 		// just copy part of the first block starting at offset
@@ -573,7 +576,6 @@ copy_data_from_inode(void *buf, int inodenum, int offset, int size) {
 		size_copied += SECTORSIZE;
 		num_direct_block ++;
 	}
-
 	if (num_direct_block < NUM_DIRECT)
 		blocknum = node->direct[num_direct_block];
 	else
@@ -592,8 +594,13 @@ int
 write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 	set_dirty(inodenum, 0);
 	struct inode *node = get_inode(inodenum);
-	if (offset + size > node->size)
+	if (offset + size > node->size) {
+		if (offset + size > SECTORSIZE * (NUM_DIRECT + (SECTORSIZE / sizeof(int)))) {
+			printf("Write request is too large for maximum filesize\n");
+			return ERROR;
+		}
 		node->size = offset + size;
+	}
 	int size_written = 0;
 
 	//FIND FIRST BLOCK TO USE and OFFSET
@@ -646,7 +653,7 @@ write_data_to_inode(void *buf, int inodenum, int offset, int size) {
 		block = get_block(blocknum);
 		memcpy(block, buf + size_written, SECTORSIZE);
 		set_dirty(blocknum, 0);
-		size_written = SECTORSIZE - offset;
+		size_written += SECTORSIZE;
 		num_direct_block ++;
 	}
 
@@ -1361,6 +1368,7 @@ _Sync() {
 				elem->entry->dirty = 0;
 				int blocknum = elem->entry->num * INODESIZE / SECTORSIZE + 1;
 				int offset = (elem->entry->num * INODESIZE) % SECTORSIZE;
+				get_block(blocknum);
 				struct cache_entry *block_entry = get_cached_elem(blocknum, 1);
 				char *block = block_entry->data;
 				memcpy(block + offset, elem->entry->data, INODESIZE);
@@ -1440,7 +1448,7 @@ main(int argc, char **argv) {
 		inodebitmap[i] = 0;
 	}
 
-	printf("Num_inodes: %d\t Num_blocks: %d\n", num_inodes, num_blocks);
+	// printf("Num_inodes: %d\t Num_blocks: %d\n", num_inodes, num_blocks);
 
 	if (argc > 1) {
 		if (Fork() == 0) {

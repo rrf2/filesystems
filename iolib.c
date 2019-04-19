@@ -280,6 +280,7 @@ Seek(int fd, int offset, int whence){
 		printf("Attempted to seek to before beginning of file!\n");
 		return -1;
 	}
+	open_files[fd].position = position;
 	return position;
 }
 
