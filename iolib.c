@@ -65,7 +65,6 @@ struct my_msg4{
 };
 
 struct file_information open_files[MAX_OPEN_FILES];
-int unused_fd = MAX_OPEN_FILES;
 int flag = 0;
 int current_dir_inode = ROOTINODE;
 
@@ -99,8 +98,10 @@ Open(char *pathname) {
 		flag = 1;
 	}
 
-	if (unused_fd == 0) {
-		printf("You have already opened the maximum number of files\n" );
+	int fd = get_unused_fd();
+
+	if (fd == -1) {
+		printf("%s\n", "Too many opened files!");
 		return -1;
 	}
 
@@ -127,8 +128,6 @@ Open(char *pathname) {
 		return -1;
 	}
 
-	int fd;
-
 
 	// //if file is already in open_files array, return fd number
 	// //TODO: how do I get the file inode number??
@@ -141,14 +140,10 @@ Open(char *pathname) {
 	// 	}
 	// }
 
-
-	fd = get_unused_fd();
-
-
 	open_files[fd].inum = inum;
 	open_files[fd].position = 0;
 
-	unused_fd--;
+
 	return fd;
 }
 
@@ -161,7 +156,6 @@ Close(int fd) {
 
 	open_files[fd].inum = 0;
 	open_files[fd].position = 0;
-	unused_fd++;
 	return 0;
 }
 
@@ -175,6 +169,7 @@ Create(char *pathname) {
 	int fd = get_unused_fd();
 
 	if (fd == -1) {
+		printf("%s\n", "Too many opened files!");
 		return -1;
 	}
 
@@ -198,7 +193,6 @@ Create(char *pathname) {
 	open_files[fd].inum = inum;
 	open_files[fd].position = 0;
 
-	unused_fd--;
 	return fd;
 }
 
