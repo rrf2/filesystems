@@ -11,7 +11,7 @@
  *  Uncomment #define below to test symbolic links too.
  */
 
-/* #define TEST_SYMLINKS */
+ #define TEST_SYMLINKS
 
 int
 main(int argc, char **argv)
